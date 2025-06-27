@@ -2,6 +2,7 @@
 import React from "react";
 import { MapPin, User, LogOut, Search } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import useResponsive from "../hooks/useResponsive";
 
 interface HeaderProps {
   onSearchClick: () => void;
@@ -11,19 +12,25 @@ interface HeaderProps {
 export default function Header({ onSearchClick, onProfileClick }: HeaderProps) {
   const { user, logout } = useAuth();
 
+  const { deviceWidth } = useResponsive();
+  console.log(deviceWidth);
+
   return (
     <header className="fixed  top-0 left-0 right-0 z-90 bg-white/30 backdrop-blur-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-300 rounded-lg flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-white" />
+          {deviceWidth >= 768 && (
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-blue-300 rounded-lg flex items-center justify-center">
+                <MapPin className="w-5 h-5 text-white" />
+              </div>
+
+              <h1 className="text-xl font-heading font-bold text-gray-900">
+                MyJourney
+              </h1>
             </div>
-            <h1 className="text-xl font-heading font-bold text-gray-900">
-              MyJourney
-            </h1>
-          </div>
+          )}
 
           {/* Search Button */}
           <button

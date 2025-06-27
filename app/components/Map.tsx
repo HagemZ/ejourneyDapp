@@ -453,7 +453,7 @@ export default function Map({
   }, [viewState]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full ">
       <div ref={mapRef} className="w-full h-full" />
 
       {/* User Location Info Panel */}
@@ -479,7 +479,7 @@ export default function Map({
       {/* Refresh Location Button */}
       <button
         onClick={getCurrentLocation}
-        className="absolute top-4 right-4 bg-white hover:bg-gray-50 p-3 rounded-lg shadow-lg border border-gray-200 z-10 transition-colors duration-200"
+        className="absolute bottom-4 left-4 bg-white hover:bg-gray-50 p-3 rounded-lg shadow-lg border border-gray-200 z-10 transition-colors duration-200"
         title="Refresh your location"
       >
         <svg

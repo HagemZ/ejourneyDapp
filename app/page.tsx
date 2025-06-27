@@ -35,12 +35,14 @@ export default function Home() {
   const [isJourneyModalOpen, setIsJourneyModalOpen] = useState(false);
   const [isJourneyDetailsModalOpen, setIsJourneyDetailsModalOpen] =
     useState(false);
+  const [isSidebarJourneyOpen, setIsSidebarJourneyOpen] = useState(false);
 
   // Map state
   const [mapViewState, setMapViewState] = useState<MapViewState>({
     center: [0, 20], // Default center
     zoom: 2,
   });
+  // open sidebar journey effect
 
   // Get user's GPS location when they log in
   useEffect(() => {
@@ -125,11 +127,11 @@ export default function Home() {
           onProfileClick={() => setIsAuthModalOpen(true)}
         />
 
-        <div className="flex-1 flex pt-16">
+        <div className="flex-1 flex pt-16 max-h-[100vh]">
           {authContextValue.user ? (
             <>
               {/* Map Section */}
-              <div className="flex-1 relative">
+              <div className="flex-1 ">
                 {gpsLoading && !initialLocationSet && (
                   <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex items-center justify-center">
                     <div className="text-center">
@@ -168,7 +170,7 @@ export default function Home() {
                 {/* Floating Add Journey Button */}
                 <button
                   onClick={() => setIsJourneyModalOpen(true)}
-                  className="absolute bottom-6 right-6 bg-primary-300 hover:bg-primary-400 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-10"
+                  className="absolute bottom-6 right-6 bg-blue-300 hover:bg-primary-400 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-10"
                   title="Add a new journey"
                 >
                   <svg
@@ -188,61 +190,90 @@ export default function Home() {
               </div>
 
               {/* Journey Cards Sidebar */}
-              <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto">
-                <div className="p-4 border-b border-gray-200">
-                  <h2 className="text-lg font-heading font-semibold text-gray-900">
-                    Recent Journeys
-                  </h2>
-                  <p className="text-sm font-body text-gray-600 mt-1">
-                    {journeys.length} adventure
-                    {journeys.length !== 1 ? "s" : ""} shared
-                  </p>
-                </div>
-
-                <div className="p-4 space-y-4">
-                  {journeys.map((journey) => (
-                    <JourneyCard
-                      key={journey.id}
-                      journey={journey}
-                      author={getAuthor(journey.userId)}
-                      onClick={() => handleJourneyCardClick(journey)}
-                    />
-                  ))}
-
-                  {journeys.length === 0 && (
-                    <div className="text-center py-8">
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg
-                          className="w-8 h-8 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                        </svg>
-                      </div>
-                      <h3 className="font-heading font-medium text-gray-900 mb-2">
-                        No journeys yet
-                      </h3>
-                      <p className="text-sm font-body text-gray-600">
-                        Click on the map or search for a location to share your
-                        first journey!
+              <div
+                className="text-black hider flex px-1  fixed w-[55px] h-[40px] top-[200px] -right-5 bg-white shadow-lg cursor-pointer rounded-full"
+                onClick={() => setIsSidebarJourneyOpen((prev) => !prev)}
+              >
+                <svg
+                  width={30}
+                  clipRule="evenodd"
+                  fillRule="evenodd"
+                  strokeLinejoin="round"
+                  strokeMiterlimit="2"
+                  viewBox="0 0 22 22"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="m21 15.75c0-.414-.336-.75-.75-.75h-16.5c-.414 0-.75.336-.75.75s.336.75.75.75h16.5c.414 0 .75-.336.75-.75zm0-4c0-.414-.336-.75-.75-.75h-16.5c-.414 0-.75.336-.75.75s.336.75.75.75h16.5c.414 0 .75-.336.75-.75zm0-4c0-.414-.336-.75-.75-.75h-16.5c-.414 0-.75.336-.75.75s.336.75.75.75h16.5c.414 0 .75-.336.75-.75z"
+                    fillRule="nonzero"
+                  />
+                </svg>
+              </div>
+              {isSidebarJourneyOpen && (
+                <div className=" journey-sidebar w-80 bg-white border-l border-gray-200 overflow-y-auto relative z-20 transition duration-100">
+                  <div className="bg-white sticky left-0 right-0 top-0 bg-whte z-80 p-4 border-b border-gray-200 flex justify-between">
+                    <div
+                      className="close text-black w-7 h-7 cursor-pointer flex justify-center items-center font-bold rounded-full shadow "
+                      onClick={() => setIsSidebarJourneyOpen((prev) => !prev)}
+                    >
+                      x
+                    </div>
+                    <div className="title">
+                      <h2 className="text-lg font-heading font-semibold text-gray-900">
+                        Recent Journeys
+                      </h2>
+                      <p className="text-sm font-body text-gray-600 mt-1">
+                        {journeys.length} adventure
+                        {journeys.length !== 1 ? "s" : ""} shared
                       </p>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="p-4 space-y-4">
+                    {journeys.map((journey) => (
+                      <JourneyCard
+                        key={journey.id}
+                        journey={journey}
+                        author={getAuthor(journey.userId)}
+                        onClick={() => handleJourneyCardClick(journey)}
+                      />
+                    ))}
+
+                    {journeys.length === 0 && (
+                      <div className="text-center py-8">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <svg
+                            className="w-8 h-8 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                          </svg>
+                        </div>
+                        <h3 className="font-heading font-medium text-gray-900 mb-2">
+                          No journeys yet
+                        </h3>
+                        <p className="text-sm font-body text-gray-600">
+                          Click on the map or search for a location to share
+                          your first journey!
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           ) : (
             <LoginPrompt onLoginClick={() => setIsAuthModalOpen(true)} />
