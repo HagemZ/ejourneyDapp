@@ -2,24 +2,33 @@
 
 import { useEffect, useState } from "react";
 
-const getDevice = (device: number) => {
-  if (device < 768) return "mobile";
-  if (device < 1024) return "tablet";
+const getDevice = (width: number) => {
+  if (width < 768) return "mobile";
+  if (width < 1024) return "tablet";
   return "desktop";
 };
 
 const useResponsive = () => {
-  const [deviceName, setDeviceName] = useState(getDevice(window.innerWidth));
-  const [deviceWidth, setDeviceWidth] = useState(window.innerWidth);
+  // Initialize with default values, will be updated in useEffect
+  const [deviceName, setDeviceName] = useState("desktop");
+  const [deviceWidth, setDeviceWidth] = useState(1024);
+  
   useEffect(() => {
+    // Only access window after component is mounted on client side
     const handleResize = () => {
       setDeviceName(getDevice(window.innerWidth));
       setDeviceWidth(window.innerWidth);
     };
+    
+    // Set initial values
     handleResize();
+    
+    // Add event listener
     window.addEventListener("resize", handleResize);
+    
+    // Clean up
     return () => window.removeEventListener("resize", handleResize);
-  });
+  }, []); // Add empty dependency array to run effect only once after mount
 
   return { deviceName, deviceWidth };
 };

@@ -19,14 +19,14 @@ export default function Home() {
   const authContextValue = useAuthProvider();
   const {
     coordinates,
+    accuracy,
     loading: gpsLoading,
     error: gpsError,
     getCurrentLocation,
   } = useGeolocation();
   const [journeys, setJourneys] = useState<Journey[]>(mockJourneys);
   const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null);
-  const [selectedLocation, setSelectedLocation] =
-    useState<LocationSuggestion | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<LocationSuggestion | undefined>(undefined);
   const [initialLocationSet, setInitialLocationSet] = useState(false);
 
   // Modal states
@@ -147,14 +147,28 @@ export default function Home() {
                 )}
 
                 {gpsError && !initialLocationSet && (
-                  <div className="absolute top-4 left-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg z-10">
+                  <div className="absolute top-4 left-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg z-10">
                     <p className="font-body text-sm">
-                      <strong>Location access denied:</strong> {gpsError}
+                      <strong>Location Error:</strong> {gpsError}
                     </p>
                     <p className="text-xs mt-1">
-                      You can still use the map, but we'll start with a world
-                      view.
+                      Please allow location access for the best experience. You can still use the map with manual location search.
                     </p>
+                  </div>
+                )}
+
+                {/* Location accuracy status */}
+                {coordinates && accuracy && !gpsLoading && (
+                  <div className={`absolute top-4 right-4 px-3 py-2 rounded-lg z-10 text-sm ${
+                    accuracy <= 60 
+                      ? 'bg-green-100 border border-green-400 text-green-700' 
+                      : 'bg-yellow-100 border border-yellow-400 text-yellow-700'
+                  }`}>
+                    {accuracy <= 60 ? (
+                      <span>✓ High accuracy location (±{Math.round(accuracy)}m)</span>
+                    ) : (
+                      <span>⚠ Location accuracy: ±{Math.round(accuracy)}m</span>
+                    )}
                   </div>
                 )}
 
@@ -163,8 +177,10 @@ export default function Home() {
                   viewState={mapViewState}
                   onViewStateChange={setMapViewState}
                   onLocationSelect={handleLocationSelect}
-                  selectedJourney={selectedJourney}
+                  selectedJourney={selectedJourney || undefined}
                   onJourneySelect={handleJourneySelect}
+                  userLocation={coordinates}
+                  userLocationAccuracy={accuracy}
                 />
 
                 {/* Floating Add Journey Button */}
