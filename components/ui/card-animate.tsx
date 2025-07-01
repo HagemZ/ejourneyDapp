@@ -1,5 +1,3 @@
-import Image from "next/image";
-import { ReactNode } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 interface CardProps {
@@ -8,7 +6,7 @@ interface CardProps {
   description?: string;
 }
 
-const Card: React.FC<CardProps> = ({
+const CardAnimate: React.FC<CardProps> = ({
   animation = "",
   title = "",
   description = "",
@@ -30,4 +28,4 @@ const Card: React.FC<CardProps> = ({
   );
 };
 
-export default Card;
+export default CardAnimate;

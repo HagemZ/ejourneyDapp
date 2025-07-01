@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import {
   summarizeLocationReviews,
   generateInsights,
-} from "../utils/aiSummarizer";
+} from "@/utils/aiSummarizer";
 
 interface JourneyDetailsModalProps {
   journey: Journey | null;

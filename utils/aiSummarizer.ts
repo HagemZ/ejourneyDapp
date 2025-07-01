@@ -1,4 +1,4 @@
-import { Journey } from '../types';
+import { Journey } from '@/types';
 
 export function summarizeLocationReviews(journeys: Journey[]): string {
   if (journeys.length === 0) return 'No reviews available for this location.';

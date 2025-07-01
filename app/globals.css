@@ -102,13 +102,31 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --animate-pulse: pulse var(--duration) ease-out infinite;
+  @keyframes pulse {
+  0%, 100% {
+    boxShadow: 0 0 0 0 var(--pulse-color);
+    }
+  50% {
+    boxShadow: 0 0 0 8px var(--pulse-color);
+    }
+  }
 }
 
 body {
-  /* background: var(--background); */
-  /* background-color: #fafafb; */
-  /* color: var(--foreground); */
   color: var(--background);
+  overflow: auto; /* Keep content scrollable */
+}
+
+/* Hide scrollbar for WebKit-based browsers (Chrome, Safari, etc.) */
+body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for other browsers */
+body {
+  -ms-overflow-style: none; /* For IE and Edge */
+  scrollbar-width: none;    /* For Firefox */
 }
 
 h1,

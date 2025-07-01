@@ -1,13 +1,5 @@
-import Card from "./ui/Card";
-
-import { MapPin, Globe, Users, Star } from "lucide-react";
-import { ReactNode } from "react";
-
-interface service {
-  judul: string;
-  desk: string;
-  animation: string;
-}
+'use client'
+import CardAnimate from "./ui/card-animate";
 
 const Service: React.FC = () => {
   const listPilihan = [
@@ -47,7 +39,7 @@ const Service: React.FC = () => {
       </div>
       <div className="pilihan flex overflow-x-scroll gap-5  py-10 pt-2  justify-evenly mt-10">
         {listPilihan.map((list, index) => (
-          <Card
+          <CardAnimate
             key={index}
             title={list.judul}
             animation={list.animation}

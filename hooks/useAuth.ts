@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, createContext, useContext } from "react";
-import { User } from "../types";
-import { mockUsers } from "../utils/mockData";
+import { User } from "@/types";
+import { mockUsers } from "@/utils/mockData";
 
 interface AuthContextType {
   user: User | null;

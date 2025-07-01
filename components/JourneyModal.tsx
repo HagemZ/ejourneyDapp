@@ -4,8 +4,9 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { X, MapPin, Star, Camera, Navigation } from "lucide-react";
 import { Journey, LocationSuggestion } from "../types";
-import { useAuth } from "../hooks/useAuth";
-import { useGeolocation } from "../hooks/useGeolocation";
+// import { useAuth } from "@/hooks/useAuth";
+import useGetUserData from "@/hooks/useAddress";
+import { useGeolocation } from "@/hooks/useGeolocation";
 
 interface JourneyModalProps {
   isOpen: boolean;
@@ -30,7 +31,8 @@ export default function JourneyModal({
   onJourneyCreate,
   selectedLocation,
 }: JourneyModalProps) {
-  const { user } = useAuth();
+  // const { user } = useAuth();
+  const { users } = useGetUserData();
   const { coordinates, loading, error, getCurrentLocation } = useGeolocation();
   const [locationVerified, setLocationVerified] = useState(false);
 
@@ -46,7 +48,7 @@ export default function JourneyModal({
   });
 
   const onSubmit = (data: JourneyForm) => {
-    if (!user || !selectedLocation) return;
+    if (!users || !selectedLocation) return;
 
     const tags = data.tags
       .split(",")
@@ -94,7 +96,7 @@ export default function JourneyModal({
     }
   }, [coordinates, selectedLocation]);
 
-  if (!isOpen || !user) return null;
+  if (!isOpen || !users) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">

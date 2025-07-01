@@ -1,4 +1,4 @@
-import { Journey, User } from '../types';
+import { Journey, User } from '@/types';
 
 export const mockUsers: User[] = [
   {
@@ -76,8 +76,13 @@ export const mockJourneys: Journey[] = [
     verifiedLocation: true
   }
 ];
-
-export const locationSuggestions = [
+export interface LocationSuggestion {
+  name: string;
+  coordinates: number[]; // Changed from tuple to array to match your data
+  country: string;
+  city: string;
+}
+export const locationSuggestions : LocationSuggestion[] = [
   { name: 'Tokyo, Japan', coordinates: [139.6917, 35.6895], country: 'Japan', city: 'Tokyo' },
   { name: 'Paris, France', coordinates: [2.3522, 48.8566], country: 'France', city: 'Paris' },
   { name: 'New York, USA', coordinates: [-74.0059, 40.7128], country: 'USA', city: 'New York' },
