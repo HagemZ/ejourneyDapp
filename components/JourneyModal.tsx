@@ -1,12 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useFormik } from "formik";
+import * as Yup from "yup";
 import { X, MapPin, Star, Camera, Navigation } from "lucide-react";
 import { Journey, LocationSuggestion } from "../types";
 // import { useAuth } from "@/hooks/useAuth";
 import useGetUserData from "@/hooks/useAddress";
 import { useGeolocation } from "@/hooks/useGeolocation";
+import { createJourney, uploadImages } from "../actions/journeyActions";
+import ShareOptionsModal from "./ShareOptionsModal";
+import { toast } from "sonner";
 
 interface JourneyModalProps {
   isOpen: boolean;
@@ -15,14 +19,7 @@ interface JourneyModalProps {
     journey: Omit<Journey, "id" | "userId" | "createdAt">
   ) => void;
   selectedLocation?: LocationSuggestion;
-}
-
-interface JourneyForm {
-  title: string;
-  description: string;
-  rating: number;
-  tags: string;
-  images: string;
+  verificationLocation?: [number, number] | null;
 }
 
 export default function JourneyModal({
@@ -30,54 +27,211 @@ export default function JourneyModal({
   onClose,
   onJourneyCreate,
   selectedLocation,
+  verificationLocation,
 }: JourneyModalProps) {
+  // Debug logging
+  console.log('JourneyModal props:', {
+    isOpen,
+    selectedLocation,
+    verificationLocation
+  });
+
   // const { user } = useAuth();
   const { users } = useGetUserData();
   const { coordinates, loading, error, getCurrentLocation } = useGeolocation();
-  const [locationVerified, setLocationVerified] = useState(false);
+  
+  // If we have verificationLocation and no selectedLocation, auto-verify the location
+  const [locationVerified, setLocationVerified] = useState(
+    !selectedLocation && !!verificationLocation
+  );
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [pendingJourneyData, setPendingJourneyData] = useState<any>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<JourneyForm>({
-    defaultValues: {
+  const formik = useFormik({
+    initialValues: {
+      title: "",
+      description: "",
       rating: 5,
+      tags: "",
+      images: [],
+    },
+    validationSchema: Yup.object({
+      title: Yup.string()
+        .required("Title is required")
+        .min(3, "Title must be at least 3 characters"),
+      description: Yup.string()
+        .required("Description is required")
+        .min(10, "Description must be at least 10 characters"),
+      images: Yup.array()
+        .of(
+          Yup.mixed()
+            .test(
+              "fileType",
+              "Only image files are allowed",
+              (file) => {
+                if (!file) return true; // Allow empty files
+                return Boolean((file as File).type && (file as File).type.startsWith("image/"));
+              }
+            )
+            .test(
+              "fileSize",
+              "Each image must be less than 5MB",
+              (file) => {
+                if (!file) return true; // Allow empty files
+                return (file as File).size <= 5 * 1024 * 1024; // 5MB limit per file
+              }
+            )
+        )
+        .max(3, "You can upload up to 3 images")
+        .test(
+          "totalSize",
+          "Total images size must be less than 10MB",
+          (files) => {
+            if (!files || files.length === 0) return true;
+            const totalSize = (files as File[]).reduce((sum: number, file: File) => {
+              return sum + (file?.size || 0);
+            }, 0);
+            return totalSize <= 10 * 1024 * 1024; // 10MB total limit
+          }
+        ),
+    }),
+    onSubmit: async (data) => {
+      console.log('Form submitted with data:', data);
+      console.log('Users:', users);
+      console.log('Selected location:', selectedLocation);
+      console.log('Current coordinates:', coordinates);
+      
+      if (!users) {
+        console.error('Missing user data');
+        toast.error('User data is required');
+        return;
+      }
+
+      // Use current location if no location is selected
+      let locationToUse = selectedLocation;
+      if (!selectedLocation && (verificationLocation || coordinates)) {
+        const locationCoords = verificationLocation || coordinates;
+        if (locationCoords) {
+          locationToUse = {
+            name: `Current Location (${locationCoords[1].toFixed(4)}, ${locationCoords[0].toFixed(4)})`,
+            coordinates: locationCoords,
+            country: "Unknown", // Adding required country property
+            city: "Unknown" // Adding required city property
+          };
+          console.log('Using current location:', locationToUse);
+        }
+      }
+
+      if (!locationToUse) {
+        toast.error('Please enable location access or select a location on the map');
+        return;
+      }
+
+      // Store form data and location to use
+      console.log('Opening share modal...');
+      setPendingJourneyData({ ...data, locationToUse });
+      setIsShareModalOpen(true);
     },
   });
-
-  const onSubmit = (data: JourneyForm) => {
-    if (!users || !selectedLocation) return;
-
-    const tags = data.tags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-    const images = data.images
-      .split(",")
-      .map((img) => img.trim())
-      .filter(Boolean);
-
-    const journey: Omit<Journey, "id" | "userId" | "createdAt"> = {
-      title: data.title,
-      description: data.description,
-      location: selectedLocation,
-      rating: data.rating,
-      tags,
-      images,
-      verifiedLocation: locationVerified,
-    };
-
-    onJourneyCreate(journey);
-    reset();
-    onClose();
-    setLocationVerified(false);
-  };
 
   const handleLocationVerification = () => {
     getCurrentLocation();
   };
+
+  const handleShare = async (shareType: 'live' | 'draft' | 'scheduled', scheduledAt?: Date) => {
+    if (!pendingJourneyData || !users) return;
+    
+    // Get the location to use from pending data or use selectedLocation
+    const locationToUse = pendingJourneyData.locationToUse || selectedLocation;
+    
+    if (!locationToUse) {
+      toast.error('Location data is missing');
+      setSubmitting(false);
+      return;
+    }
+    
+    setSubmitting(true);
+    
+    try {
+      // First upload images if any exist
+      let imageUrls: string[] = [];
+      if (pendingJourneyData.images && pendingJourneyData.images.length > 0) {
+        const imageUploadResult = await uploadImages(pendingJourneyData.images);
+        
+        if (!imageUploadResult.success) {
+          toast.error(imageUploadResult.error || 'Failed to upload images');
+          setSubmitting(false);
+          return;
+        }
+        
+        imageUrls = imageUploadResult.urls || [];
+      }
+
+      const tags = pendingJourneyData.tags
+        .split(",")
+        .map((tag: string) => tag.trim())
+        .filter(Boolean);
+
+      // Create journey with uploaded image URLs
+      const journeyData = {
+        userId: users.id, // Add user ID
+        title: pendingJourneyData.title,
+        description: pendingJourneyData.description,
+        rating: pendingJourneyData.rating,
+        tags,
+        images: imageUrls,
+        location: {
+          name: locationToUse.name,
+          coordinates: locationToUse.coordinates,
+        },
+        verifiedLocation: !selectedLocation && (coordinates || verificationLocation) ? true : locationVerified, // Auto-verify GPS locations
+        verificationLocation: !selectedLocation && (coordinates || verificationLocation) 
+          ? (verificationLocation || coordinates || undefined) 
+          : (verificationLocation || undefined),
+        shareType,
+        scheduledAt: scheduledAt?.toISOString(),
+      };
+
+      const result = await createJourney(journeyData);
+
+      if (result.success) {
+        toast.success(
+          shareType === 'live' ? 'Journey shared successfully!' :
+          shareType === 'draft' ? 'Journey saved as draft!' :
+          'Journey scheduled successfully!'
+        );
+        
+        // Call the original onJourneyCreate if it was a live share
+        if (shareType === 'live' && result.journey) {
+          onJourneyCreate(result.journey);
+        }
+        
+        // Close modals and reset form
+        setIsShareModalOpen(false);
+        formik.resetForm();
+        onClose();
+        setLocationVerified(false);
+        setPendingJourneyData(null);
+      } else {
+        toast.error(result.error || 'Failed to create journey');
+      }
+    } catch (error) {
+      console.error('Error sharing journey:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  React.useEffect(() => {
+    // Auto-verify location when using GPS coordinates without a selected location
+    if (!selectedLocation && (verificationLocation || coordinates)) {
+      setLocationVerified(true);
+    } else if (selectedLocation) {
+      setLocationVerified(false); // Reset for selected locations
+    }
+  }, [selectedLocation, verificationLocation, coordinates]);
 
   React.useEffect(() => {
     if (coordinates && selectedLocation) {
@@ -115,9 +269,16 @@ export default function JourneyModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+        <form 
+          onSubmit={(e) => {
+            console.log('Form onSubmit triggered');
+            e.preventDefault();
+            formik.handleSubmit(e);
+          }} 
+          className="p-6 space-y-6"
+        >
           {/* Location Display */}
-          {selectedLocation && (
+          {selectedLocation ? (
             <div className="bg-primary-50 p-4 rounded-lg">
               <div className="flex items-center space-x-2">
                 <MapPin className="w-5 h-5 text-primary-400" />
@@ -126,13 +287,13 @@ export default function JourneyModal({
                 </span>
               </div>
 
-              {/* Location Verification */}
+              {/* Location Verification - only show for selected locations, not GPS */}
               <div className="mt-3 flex items-center space-x-3">
                 <button
                   type="button"
                   onClick={handleLocationVerification}
                   disabled={loading}
-                  className="flex items-center space-x-2 text-sm text-primary-400 hover:text-primary-500"
+                  className="flex items-center px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 space-x-2 text-sm text-primary-400 hover:text-primary-500"
                 >
                   <Navigation className="w-4 h-4" />
                   <span>{loading ? "Verifying..." : "Verify Location"}</span>
@@ -145,6 +306,58 @@ export default function JourneyModal({
                 {error && <span className="text-sm text-red-500">{error}</span>}
               </div>
             </div>
+          ) : (verificationLocation || coordinates) ? (
+            <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <MapPin className="w-5 h-5 text-green-600" />
+                <span className="font-body font-medium text-green-800">
+                  Using Current GPS Location
+                </span>
+              </div>
+              <p className="text-sm text-green-700 mt-2">
+                Your current GPS location will be used: {verificationLocation ? 
+                  `${verificationLocation[1].toFixed(4)}, ${verificationLocation[0].toFixed(4)}` : 
+                  coordinates ? `${coordinates[1].toFixed(4)}, ${coordinates[0].toFixed(4)}` : ''
+                }
+              </p>
+              <span className="text-sm text-green-600 font-medium mt-2 inline-block">
+                ✓ GPS Location Auto-Verified
+              </span>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <MapPin className="w-5 h-5 text-yellow-600" />
+                <span className="font-body font-medium text-yellow-800">
+                  Getting Location...
+                </span>
+              </div>
+              <p className="text-sm text-yellow-700 mt-2">
+                Please allow location access or select a location on the map.
+              </p>
+            </div>
+          )}
+
+          {/* Verification Location (GPS) */}
+          {verificationLocation && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-green-800 text-sm">
+              <strong>Verification GPS:</strong>
+              <br />
+              Lat: {verificationLocation[1].toFixed(6)}
+              <br />
+              Lng: {verificationLocation[0].toFixed(6)}
+            </div>
+          )}
+
+          {/* Current Location */}
+          {coordinates && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-800 text-sm">
+              <strong>Current Location:</strong>
+              <br />
+              Lat: {coordinates[1].toFixed(6)}
+              <br />
+              Lng: {coordinates[0].toFixed(6)}
+            </div>
           )}
 
           {/* Title */}
@@ -153,14 +366,20 @@ export default function JourneyModal({
               Journey Title *
             </label>
             <input
+              id="title"
+              name="title"
               type="text"
-              {...register("title", { required: "Title is required" })}
+              value={formik.values.title}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent"
               placeholder="Amazing Tokyo Adventure"
+              aria-invalid={!!(formik.touched.title && formik.errors.title)}
+              aria-describedby="title-error"
             />
-            {errors.title && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.title.message}
+            {formik.touched.title && formik.errors.title && (
+              <p id="title-error" className="text-red-500 text-sm mt-1">
+                {formik.errors.title}
               </p>
             )}
           </div>
@@ -171,16 +390,20 @@ export default function JourneyModal({
               Description *
             </label>
             <textarea
-              {...register("description", {
-                required: "Description is required",
-              })}
+              id="description"
+              name="description"
+              value={formik.values.description}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent resize-none"
               placeholder="Tell us about your experience..."
+              aria-invalid={!!(formik.touched.description && formik.errors.description)}
+              aria-describedby="description-error"
             />
-            {errors.description && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.description.message}
+            {formik.touched.description && formik.errors.description && (
+              <p id="description-error" className="text-red-500 text-sm mt-1">
+                {formik.errors.description}
               </p>
             )}
           </div>
@@ -195,11 +418,19 @@ export default function JourneyModal({
                 <label key={star} className="cursor-pointer">
                   <input
                     type="radio"
+                    name="rating"
                     value={star}
-                    {...register("rating")}
+                    checked={formik.values.rating === star}
+                    onChange={() => formik.setFieldValue('rating', star)}
                     className="sr-only"
                   />
-                  <Star className="w-6 h-6 text-yellow-400 fill-current" />
+                  <Star 
+                    className={`w-6 h-6 ${
+                      formik.values.rating >= star 
+                        ? 'text-yellow-400 fill-current' 
+                        : 'text-gray-300'
+                    }`} 
+                  />
                 </label>
               ))}
             </div>
@@ -212,7 +443,7 @@ export default function JourneyModal({
             </label>
             <input
               type="text"
-              {...register("tags")}
+              {...formik.getFieldProps("tags")}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent"
               placeholder="culture, food, adventure"
             />
@@ -221,20 +452,57 @@ export default function JourneyModal({
           {/* Images */}
           <div>
             <label className="block text-sm font-body font-medium text-gray-700 mb-2">
-              Images (comma-separated URLs)
+              Images (up to 3, min 800x600px) - Optional
             </label>
-            <div className="flex items-center space-x-2">
-              <Camera className="w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                {...register("images")}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent"
-                placeholder="https://example.com/photo1.jpg, https://example.com/photo2.jpg"
-              />
-            </div>
+            <input
+              id="images"
+              name="images"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={async (e) => {
+                const files = Array.from(e.target.files || []).slice(0, 3);
+                
+                // Show loading state
+                const loadingToast = toast.loading('Compressing images...');
+                
+                try {
+                  // Compress images before adding to form
+                  const compressedFiles = await Promise.all(
+                    files.map(file => compressImage(file, 2)) // Compress to max 2MB each
+                  );
+                  
+                  formik.setFieldValue('images', compressedFiles);
+                  toast.dismiss(loadingToast);
+                  toast.success(`${compressedFiles.length} image(s) compressed and ready`);
+                } catch (error) {
+                  console.error('Error compressing images:', error);
+                  toast.dismiss(loadingToast);
+                  toast.error('Failed to compress images');
+                  formik.setFieldValue('images', files); // fallback to original files
+                }
+              }}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+            {formik.values.images && formik.values.images.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {formik.values.images.map((file: File, idx: number) => (
+                  <span
+                    key={idx}
+                    className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs"
+                  >
+                    {file.name} ({(file.size / 1024 / 1024).toFixed(2)}MB)
+                  </span>
+                ))}
+              </div>
+            )}
+            {formik.touched.images && formik.errors.images && (
+              <p className="text-red-500 text-xs mt-1">
+                {Array.isArray(formik.errors.images) ? formik.errors.images[0] : formik.errors.images}
+              </p>
+            )}
             <p className="text-xs text-gray-500 mt-1">
-              Use high-quality image URLs from Pexels, Unsplash, or similar
-              services
+              Upload up to 3 images. Each will be compressed to optimize file size. Images are optional.
             </p>
           </div>
 
@@ -249,15 +517,89 @@ export default function JourneyModal({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-primary-300 hover:bg-primary-400 text-white rounded-lg font-body font-medium transition-colors duration-200"
+              disabled={formik.isSubmitting || (!selectedLocation && !verificationLocation && !coordinates)}
+              className="flex-1 px-4 py-2 bg-blue-300 hover:bg-blue-600 text-white rounded-lg font-body font-medium transition-colors duration-200 disabled:opacity-50"
+              onClick={(e) => {
+                console.log('Submit button clicked');
+                console.log('Form errors:', formik.errors);
+                console.log('Form values:', formik.values);
+                console.log('Form is valid:', formik.isValid);
+                console.log('Selected location:', selectedLocation);
+                console.log('Verification location:', verificationLocation);
+                console.log('Current coordinates:', coordinates);
+              }}
             >
-              Share Journey
+              {formik.isSubmitting ? 'Processing...' : 'Share Journey'}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Share Options Modal */}
+      <ShareOptionsModal
+        isOpen={isShareModalOpen}
+        onClose={() => {
+          setIsShareModalOpen(false);
+          setPendingJourneyData(null);
+        }}
+        onShare={handleShare}
+        loading={submitting}
+      />
     </div>
   );
+}
+
+// Helper function to compress images
+async function compressImage(file: File, maxSizeMB: number = 2): Promise<File> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      // Calculate new dimensions to maintain aspect ratio
+      const MAX_WIDTH = 1920;
+      const MAX_HEIGHT = 1080;
+      
+      let { width, height } = img;
+      
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height = (height * MAX_WIDTH) / width;
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width = (width * MAX_HEIGHT) / height;
+          height = MAX_HEIGHT;
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Draw and compress
+      ctx?.drawImage(img, 0, 0, width, height);
+      
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const compressedFile = new File([blob], file.name, {
+              type: file.type,
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          } else {
+            resolve(file); // fallback to original file
+          }
+        },
+        file.type,
+        0.8 // Quality (0.8 = 80% quality)
+      );
+    };
+    
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 // Helper function to calculate distance between two coordinates

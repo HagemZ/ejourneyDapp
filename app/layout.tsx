@@ -7,14 +7,16 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+import { Toaster } from "@/components/ui/sonner";
+
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "eJourney - Your Journey, Your Way",
-  description: "eJourney DApp is a decentralized platform where users can share, review, and rate travel experiences in a trusted, blockchain-powered ecosystem.",
+  title: "JourneyLog - Make Log of Your Journey",
+  description: "JourneyLog is a decentralized platform where users can share, review, and rate travel experiences in a trusted, blockchain-powered ecosystem.",
 };
 
 export default function RootLayout({
@@ -27,7 +29,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-          <Web3Provider>{children}</Web3Provider>
+        <Web3Provider>{children}</Web3Provider>
+        <Toaster />
       </body>
     </html>
   );

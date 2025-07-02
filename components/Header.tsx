@@ -24,7 +24,7 @@ export default function Header() {
             </div>
             {deviceWidth >= 768 && (
               <h1 className="text-xl font-heading font-bold text-gray-900">
-                eJourney Dapp
+                JourneyLog Dapp
               </h1>
             )}
           </div>

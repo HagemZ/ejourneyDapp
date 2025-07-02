@@ -16,6 +16,13 @@ export default function JourneyCard({
   author,
   onClick,
 }: JourneyCardProps) {
+  // Debug: Log journey data
+  console.log(`JourneyCard for "${journey.title}":`, {
+    hasImages: journey.images.length > 0,
+    imageCount: journey.images.length,
+    images: journey.images
+  });
+
   return (
     <div
       onClick={onClick}
@@ -28,6 +35,8 @@ export default function JourneyCard({
             src={journey.images[0]}
             alt={journey.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onLoad={() => console.log(`Image loaded for journey "${journey.title}":`, journey.images[0])}
+            onError={(e) => console.error(`Image failed to load for journey "${journey.title}":`, journey.images[0], e)}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 

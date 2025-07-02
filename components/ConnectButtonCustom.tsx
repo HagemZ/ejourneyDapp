@@ -5,12 +5,15 @@ import useResponsive from "@/hooks/useResponsive";
 import { MapPin, User, LogOut, Navigation, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
+import { toast } from 'sonner';
+import useGetUserData from "@/hooks/useAddress";
 
 
 const ConnectButtonCustom = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { deviceWidth } = useResponsive();
+  const { users } = useGetUserData();
   
   const isDashboard = pathname === '/dashboard';
   //   console.log(deviceWidth);
@@ -35,7 +38,9 @@ const ConnectButtonCustom = () => {
                             >
                                 <User className="w-4 h-4" />
                                 {deviceWidth >= 768 && (
-                                    <span className="text-sm">{account?.address.slice(0, 6)}...{account?.address.slice(-4)}</span>
+                                    <span className="text-sm">
+                                        {users?.fullname || `${account?.address.slice(0, 6)}...${account?.address.slice(-4)}`}
+                                    </span>
                                 )}
                             </Button>
                             {deviceWidth >= 768 && (
@@ -54,7 +59,7 @@ const ConnectButtonCustom = () => {
                                         // Trigger map centering functionality
                                         window.dispatchEvent(new CustomEvent('centerMap'));
                                         console.log('Center map clicked');
-                                        
+                                        toast('Zoom User Location...');
                                         // Show a brief toast/feedback
                                         const button = document.querySelector('[title="Center Map"]');
                                         if (button) {

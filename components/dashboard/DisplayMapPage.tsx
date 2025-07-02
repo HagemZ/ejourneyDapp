@@ -5,6 +5,7 @@ import { Journey, MapViewState, LocationSuggestion } from "@/types";
 import { mockJourneys, mockUsers } from "@/utils/mockData";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import useGetUserData from "@/hooks/useAddress";
+import { fetchJourneys } from "../../actions/journeyActions";
 
 import Header from "@/components/Header";
 import Map from "@/components/Map";
@@ -25,12 +26,13 @@ export default function DisplayMap() {
         getCurrentLocation,
     } = useGeolocation();
 
-    const [journeys, setJourneys] = useState<Journey[]>(mockJourneys);
+    const [journeys, setJourneys] = useState<Journey[]>([]);
     const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null);
     const [selectedLocation, setSelectedLocation] = useState<LocationSuggestion | undefined>(undefined);
     const [initialLocationSet, setInitialLocationSet] = useState(false);
     const [centerMapRequested, setCenterMapRequested] = useState(false);
     const [showAccuracyStatus, setShowAccuracyStatus] = useState(true);
+    const [journeysLoading, setJourneysLoading] = useState(true);
 
     // Modal states  
     const [isJourneyModalOpen, setIsJourneyModalOpen] = useState(false);
@@ -42,7 +44,51 @@ export default function DisplayMap() {
         center: [0, 20], // Default center
         zoom: 2,
     });
+    const [verificationLocation, setVerificationLocation] = useState<[number, number] | null>(null);
+    
+    // Function to load journeys from database
+    const loadJourneys = async () => {
+        try {
+            setJourneysLoading(true);
+            const result = await fetchJourneys({
+                status: 'active', // Only fetch active journeys for public view
+                limit: 50,
+                offset: 0
+            });
+
+            if (result.success && result.journeys) {
+                setJourneys(result.journeys);
+                console.log(`Loaded ${result.journeys.length} journeys from database`);
+                // Debug: Log journey images and author data
+                result.journeys.forEach(journey => {
+                    console.log(`Journey "${journey.title}":`, {
+                        userId: journey.userId,
+                        authorName: journey.authorName,
+                        authorEmail: journey.authorEmail,
+                        hasImages: journey.images && journey.images.length > 0,
+                        imageCount: journey.images ? journey.images.length : 0
+                    });
+                });
+            } else {
+                console.error('Failed to load journeys:', result.error);
+                // Fallback to mock data if database fetch fails
+                setJourneys(mockJourneys);
+            }
+        } catch (error) {
+            console.error('Error loading journeys:', error);
+            // Fallback to mock data on error
+            setJourneys(mockJourneys);
+        } finally {
+            setJourneysLoading(false);
+        }
+    };
+
     // open sidebar journey effect
+
+    // Load journeys from database when component mounts
+    useEffect(() => {
+        loadJourneys();
+    }, []);
 
     // Get user's GPS location when they log in
     useEffect(() => {
@@ -82,8 +128,11 @@ export default function DisplayMap() {
     }, [users]);
 
 
-    const handleLocationSelect = (location: LocationSuggestion) => {
+    const handleLocationSelect = (location: LocationSuggestion, verificationLocation?: [number, number]) => {
         setSelectedLocation(location);
+        if (verificationLocation) {
+            setVerificationLocation(verificationLocation);
+        }
         setMapViewState({
             center: location.coordinates,
             zoom: 10,
@@ -97,19 +146,15 @@ export default function DisplayMap() {
         }
     };
 
-    const handleJourneyCreate = (
+    const handleJourneyCreate = async (
         journeyData: Omit<Journey, "id" | "userId" | "createdAt">
     ) => {
         if (!users) return;
 
-        const newJourney: Journey = {
-            ...journeyData,
-            id: Date.now().toString(),
-            userId: users.id,
-            createdAt: new Date(),
-        };
-
-        setJourneys((prev) => [newJourney, ...prev]);
+        // Reload journeys from database to include the newly created journey
+        await loadJourneys();
+        
+        console.log("Journey created and journeys reloaded from database");
     };
 
     const handleJourneySelect = (journey: Journey | null) => {
@@ -128,8 +173,23 @@ export default function DisplayMap() {
         setIsJourneyDetailsModalOpen(true);
     };
 
-    const getAuthor = (userId: string) => {
-        return mockUsers.find((user) => user.id === userId) || mockUsers[0];
+    const getAuthor = (journey: Journey) => {
+        // Use real author data from the journey if available
+        if (journey.authorName || journey.authorEmail) {
+            const author = {
+                id: journey.userId,
+                name: journey.authorName || 'Anonymous User',
+                email: journey.authorEmail || 'user@example.com',
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${journey.userId}`,
+                verified: true
+            };
+            console.log('Using real author data:', author);
+            return author;
+        }
+        
+        // Fallback to mock user if no author data available
+        console.log('Falling back to mock user for journey:', journey.id);
+        return mockUsers.find((user) => user.id === journey.userId) || mockUsers[0];
     };
 
     // Listen for center map event from header button
@@ -292,7 +352,21 @@ export default function DisplayMap() {
 
                             {/* Floating Add Journey Button */}
                             <button
-                                onClick={() => setIsJourneyModalOpen(true)}
+                                onClick={() => {
+                                    // Clear any previously selected location
+                                    setSelectedLocation(undefined);
+                                    
+                                    // Use current GPS coordinates as verification location
+                                    if (coordinates) {
+                                        setVerificationLocation(coordinates);
+                                        console.log('Opening journey modal with current location:', coordinates);
+                                    } else {
+                                        // If no GPS coordinates, try to get them first
+                                        getCurrentLocation();
+                                    }
+                                    
+                                    setIsJourneyModalOpen(true);
+                                }}
                                 className="absolute bottom-6 right-6 bg-blue-300 hover:bg-primary-400 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-10"
                                 title="Add a new journey"
                             >
@@ -314,11 +388,11 @@ export default function DisplayMap() {
 
                         {/* Journey Cards Sidebar */}
                         <div
-                            className="text-black hider flex px-1  fixed w-[55px] h-[40px] top-[200px] -right-5 bg-white shadow-lg cursor-pointer rounded-full"
+                            className="text-black hider flex px-1  fixed w-[55px] h-[40px] top-[200px] -right-5 bg-green-600 shadow-lg cursor-pointer rounded-full"
                             onClick={() => setIsSidebarJourneyOpen((prev) => !prev)}
                         >
                             <svg
-                                width={30}
+                                width={50}
                                 clipRule="evenodd"
                                 fillRule="evenodd"
                                 strokeLinejoin="round"
@@ -333,7 +407,7 @@ export default function DisplayMap() {
                             </svg>
                         </div>
                         {isSidebarJourneyOpen && (
-                            <div className=" journey-sidebar w-80 bg-white border-l border-gray-200 overflow-y-auto relative z-20 transition duration-100">
+                            <div className=" journey-sidebar w-80 bg-blue-300 border-l border-gray-200 overflow-y-auto relative z-20 transition duration-100">
                                 <div className="bg-white sticky left-0 right-0 top-0 bg-whte z-80 p-4 border-b border-gray-200 flex justify-between">
                                     <div
                                         className="close text-black w-7 h-7 cursor-pointer flex justify-center items-center font-bold rounded-full shadow "
@@ -346,23 +420,35 @@ export default function DisplayMap() {
                                             Recent Journeys
                                         </h2>
                                         <p className="text-sm font-body text-gray-600 mt-1">
-                                            {journeys.length} adventure
-                                            {journeys.length !== 1 ? "s" : ""} shared
+                                            {journeysLoading ? 'Loading...' : 
+                                             `${journeys.length} adventure${journeys.length !== 1 ? "s" : ""} shared`}
                                         </p>
                                     </div>
                                 </div>
 
                                 <div className="p-4 space-y-4">
-                                    {journeys.map((journey) => (
-                                        <JourneyCard
-                                            key={journey.id}
-                                            journey={journey}
-                                            author={getAuthor(journey.userId)}
-                                            onClick={() => handleJourneyCardClick(journey)}
-                                        />
-                                    ))}
-
-                                    {journeys.length === 0 && (
+                                    {journeysLoading ? (
+                                        // Loading state
+                                        <div className="text-center py-8">
+                                            <div className="w-8 h-8 border-4 border-blue-300 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                            <p className="text-sm text-gray-600">Loading journeys...</p>
+                                        </div>
+                                    ) : journeys.length > 0 ? (
+                                        // Show journeys
+                                        journeys.map((journey) => {
+                                            const author = getAuthor(journey);
+                                            console.log(`Author for journey "${journey.title}":`, author);
+                                            return (
+                                                <JourneyCard
+                                                    key={journey.id}
+                                                    journey={journey}
+                                                    author={author}
+                                                    onClick={() => handleJourneyCardClick(journey)}
+                                                />
+                                            );
+                                        })
+                                    ) : (
+                                        // Empty state
                                         <div className="text-center py-8">
                                             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                                 <svg
@@ -424,15 +510,19 @@ export default function DisplayMap() {
 
             <JourneyModal
               isOpen={isJourneyModalOpen}
-              onClose={() => setIsJourneyModalOpen(false)}
+              onClose={() => {
+                setIsJourneyModalOpen(false);
+                setVerificationLocation(null);
+              }}
               onJourneyCreate={handleJourneyCreate}
               selectedLocation={selectedLocation}
+              verificationLocation={verificationLocation}
             />
 
             <JourneyDetailsModal
               journey={selectedJourney}
               author={
-                selectedJourney ? getAuthor(selectedJourney.userId) : null
+                selectedJourney ? getAuthor(selectedJourney) : null
               }
               allJourneys={journeys}
               isOpen={isJourneyDetailsModalOpen}

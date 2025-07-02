@@ -29,6 +29,8 @@ export interface Journey {
   tags: string[];
   createdAt: Date;
   verifiedLocation: boolean;
+  authorName?: string; // Author's full name from backend
+  authorEmail?: string; // Author's email from backend
 }
 
 export interface LocationSuggestion {
