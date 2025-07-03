@@ -34,7 +34,10 @@ export const mockJourneys: Journey[] = [
     rating: 5,
     tags: ['culture', 'food', 'city', 'cherry-blossoms'],
     createdAt: new Date('2024-03-15'),
-    verifiedLocation: true
+    verifiedLocation: true,
+    totalVotes: 12,
+    averageRating: 4.8,
+    reviewCount: 8
   },
   {
     id: '2',
@@ -54,7 +57,10 @@ export const mockJourneys: Journey[] = [
     rating: 5,
     tags: ['nature', 'adventure', 'northern-lights', 'hot-springs'],
     createdAt: new Date('2024-02-20'),
-    verifiedLocation: true
+    verifiedLocation: true,
+    totalVotes: 15,
+    averageRating: 4.6,
+    reviewCount: 10
   },
   {
     id: '3',
@@ -73,7 +79,10 @@ export const mockJourneys: Journey[] = [
     rating: 4,
     tags: ['romance', 'culture', 'architecture', 'cafés'],
     createdAt: new Date('2024-01-10'),
-    verifiedLocation: true
+    verifiedLocation: true,
+    totalVotes: 7,
+    averageRating: 4.2,
+    reviewCount: 5
   }
 ];
 export interface LocationSuggestion {

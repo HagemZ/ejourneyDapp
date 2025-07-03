@@ -1,5 +1,111 @@
-import { Journey } from '@/types';
+import { Journey, Review } from '@/types';
 
+const API_BASE_URL = 'http://localhost:3033';
+
+/**
+ * Generate AI-powered location insights using the backend Gemini API
+ */
+export async function generateAILocationInsights(locationName: string, journeyIds?: string[]): Promise<{
+  success: boolean;
+  insights?: string;
+  metadata?: any;
+  error?: string;
+  fallbackInsights?: any;
+  message?: string;
+}> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ai/location-insights`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        locationName,
+        journeyIds,
+        forceGenerate: false // Only generate if there's substantial content
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error generating AI insights:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate AI insights'
+    };
+  }
+}
+
+/**
+ * Generate AI-powered location summary
+ */
+export async function generateAILocationSummary(locationName: string, description?: string): Promise<{
+  success: boolean;
+  summary?: string;
+  error?: string;
+}> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ai/location-summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        locationName,
+        description
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error generating AI summary:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate AI summary'
+    };
+  }
+}
+
+/**
+ * Get AI-powered travel trends
+ */
+export async function getAITravelTrends(): Promise<{
+  success: boolean;
+  trends?: string;
+  metadata?: any;
+  error?: string;
+}> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ai/travel-trends`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error getting AI travel trends:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get AI travel trends'
+    };
+  }
+}
+
+/**
+ * Fallback local summarization for when AI services are unavailable
+ */
 export function summarizeLocationReviews(journeys: Journey[]): string {
   if (journeys.length === 0) return 'No reviews available for this location.';
 

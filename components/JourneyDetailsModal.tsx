@@ -6,7 +6,6 @@ import {
   MapPin,
   Star,
   Calendar,
-  User,
   Shield,
   ExternalLink,
   ThumbsUp,
@@ -18,6 +17,7 @@ import { format } from "date-fns";
 import {
   summarizeLocationReviews,
   generateInsights,
+  generateAILocationInsights,
 } from "@/utils/aiSummarizer";
 import { fetchReviews, createReview } from "../actions/journeyActions";
 import ReviewModal from "./ReviewModal";
@@ -45,13 +45,50 @@ export default function JourneyDetailsModal({
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string>('');
+  const [loadingAI, setLoadingAI] = useState(false);
 
-  // Fetch reviews when modal opens
+  // Fetch reviews and AI insights when modal opens
   useEffect(() => {
     if (isOpen && journey) {
       loadReviews();
+      loadAIInsights();
     }
   }, [isOpen, journey]);
+
+  const loadAIInsights = async () => {
+    if (!journey) return;
+    
+    setLoadingAI(true);
+    try {
+      // Get all journeys for the same location
+      const locationJourneys = allJourneys.filter(
+        (j) => j.location.name === journey.location.name
+      );
+      
+      const journeyIds = locationJourneys.map(j => j.id);
+      const result = await generateAILocationInsights(journey.location.name, journeyIds);
+      
+      if (result.success && result.insights) {
+        setAiInsights(result.insights);
+      } else if (result.message) {
+        // Handle insufficient data case
+        setAiInsights(`**Notice:** ${result.message}\n\n**Suggestion:** ${result.fallbackInsights?.suggestion || 'Share more detailed experiences to enable AI insights!'}\n\n**Current Data:**\n- ${result.fallbackInsights?.totalJourneys || 0} journeys shared\n- ${result.fallbackInsights?.totalReviews || 0} reviews available`);
+      } else {
+        // Fallback to local summarization
+        setAiInsights(summarizeLocationReviews(locationJourneys));
+      }
+    } catch (error) {
+      console.error('Error loading AI insights:', error);
+      // Fallback to local summarization
+      const locationJourneys = allJourneys.filter(
+        (j) => j.location.name === journey.location.name
+      );
+      setAiInsights(summarizeLocationReviews(locationJourneys));
+    } finally {
+      setLoadingAI(false);
+    }
+  };
 
   const loadReviews = async () => {
     if (!journey) return;
@@ -110,12 +147,11 @@ export default function JourneyDetailsModal({
 
   if (!isOpen || !journey || !author) return null;
 
-  // Get all journeys for the same location for AI insights
+  // Get all journeys for the same location for local insights fallback
   const locationJourneys = allJourneys.filter(
     (j) => j.location.name === journey.location.name
   );
 
-  const aiSummary = summarizeLocationReviews(locationJourneys);
   const insights = generateInsights(locationJourneys);
 
   return (
@@ -174,17 +210,11 @@ export default function JourneyDetailsModal({
           {/* Author and Date */}
           <div className="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center space-x-3">
-              {author.avatar ? (
-                <img
-                  src={author.avatar}
-                  alt={author.name}
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-12 h-12 bg-primary-300 rounded-full flex items-center justify-center">
-                  <User className="w-6 h-6 text-white" />
-                </div>
-              )}
+              <img
+                src={author.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${author.email || author.name || 'anonymous'}`}
+                alt={author.name}
+                className="w-12 h-12 rounded-full object-cover"
+              />
               <div>
                 <h3 className="font-body font-semibold text-gray-900">
                   {author.name}
@@ -316,24 +346,26 @@ export default function JourneyDetailsModal({
                     <div key={review.id} className="bg-white p-4 rounded-lg border">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-2">
-                          <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                            <User className="w-4 h-4 text-gray-600" />
-                          </div>
+                          <img
+                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${review.authorEmail || review.authorName || 'anonymous'}`}
+                            alt={review.authorName || 'Anonymous'}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
                           <span className="font-medium text-gray-900">
-                            {review.userName || 'Anonymous'}
+                            {review.authorName || 'Anonymous'}
                           </span>
                           <span className="text-xs text-gray-500">
                             {format(new Date(review.createdAt), "MMM d, yyyy")}
                           </span>
                         </div>
                         <div className="flex items-center space-x-1">
-                          {review.type === 'upvote' && (
+                          {review.voteType === 'upvote' && (
                             <ThumbsUp className="w-4 h-4 text-green-600" />
                           )}
-                          {review.type === 'downvote' && (
+                          {review.voteType === 'downvote' && (
                             <ThumbsDown className="w-4 h-4 text-red-600" />
                           )}
-                          {review.type === 'review' && review.rating && (
+                          {review.voteType === 'review' && review.rating && (
                             <div className="flex items-center">
                               <Star className="w-4 h-4 text-yellow-400 fill-current" />
                               <span className="text-sm font-medium ml-1">{review.rating}/5</span>
@@ -341,8 +373,26 @@ export default function JourneyDetailsModal({
                           )}
                         </div>
                       </div>
-                      {review.comment && (
-                        <p className="text-gray-700 text-sm">{review.comment}</p>
+                      {review.voteType === 'upvote' || review.voteType === 'downvote' ? (
+                        <div className="flex items-center space-x-2 mt-2">
+                          {review.voteType === 'upvote' ? (
+                            <>
+                              <ThumbsUp className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-medium text-green-700">Upvoted ✅</span>
+                            </>
+                          ) : (
+                            <>
+                              <ThumbsDown className="w-4 h-4 text-red-600" />
+                              <span className="text-sm font-medium text-red-700">Downvoted ❌</span>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          {review.comment && (
+                            <p className="text-gray-700 text-sm">{review.comment}</p>
+                          )}
+                        </>
                       )}
                       {review.images && review.images.length > 0 && (
                         <div className="flex space-x-2 mt-2">
@@ -371,69 +421,182 @@ export default function JourneyDetailsModal({
           </div>
 
           {/* AI Insights */}
-          <div className="bg-gradient-to-r from-primary-50 to-accent-50 p-6 rounded-xl">
-            <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-              <span>🤖</span>
-              <span>AI Location Insights</span>
-            </h2>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-100 border border-blue-200 rounded-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                    <span className="text-lg">🤖</span>
+                  </div>
+                  <h2 className="text-lg font-heading font-semibold text-white">
+                    AI Location Insights
+                  </h2>
+                </div>
+                {loadingAI && (
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30 border-t-white"></div>
+                )}
+              </div>
+            </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-body font-semibold text-gray-800 mb-2">
-                  Summary
-                </h3>
-                <p className="font-body text-gray-700 text-sm leading-relaxed">
-                  {aiSummary}
-                </p>
+            <div className="p-6">
+              {loadingAI ? (
+                <div className="space-y-4">
+                  <div className="h-6 bg-gray-300 rounded animate-pulse"></div>
+                  <div className="h-4 bg-gray-300 rounded animate-pulse w-3/4"></div>
+                  <div className="h-4 bg-gray-300 rounded animate-pulse w-1/2"></div>
+                  <div className="h-4 bg-gray-300 rounded animate-pulse w-2/3"></div>
+                </div>
+              ) : aiInsights ? (
+                <div className="space-y-6">
+                  {/* Parse and display AI insights in sections */}
+                  {(() => {
+                    const sections = aiInsights.split('**').filter(section => section.trim());
+                    const parsedSections: { title: string; content: string }[] = [];
+                    
+                    for (let i = 0; i < sections.length; i += 2) {
+                      if (sections[i] && sections[i + 1]) {
+                        parsedSections.push({
+                          title: sections[i].replace(':', '').trim(),
+                          content: sections[i + 1].trim()
+                        });
+                      }
+                    }
+
+                    return parsedSections.map((section, index) => {
+                      const getSectionIcon = (title: string) => {
+                        if (title.toLowerCase().includes('overview')) return '🌍';
+                        if (title.toLowerCase().includes('experience')) return '✨';
+                        if (title.toLowerCase().includes('best for')) return '🎯';
+                        if (title.toLowerCase().includes('sentiment')) return '💭';
+                        if (title.toLowerCase().includes('tips')) return '💡';
+                        return '📍';
+                      };
+
+                      const getSectionColor = (title: string) => {
+                        if (title.toLowerCase().includes('overview')) return 'from-green-500 to-emerald-500';
+                        if (title.toLowerCase().includes('experience')) return 'from-purple-500 to-violet-500';
+                        if (title.toLowerCase().includes('best for')) return 'from-orange-500 to-amber-500';
+                        if (title.toLowerCase().includes('sentiment')) return 'from-pink-500 to-rose-500';
+                        if (title.toLowerCase().includes('tips')) return 'from-cyan-500 to-blue-500';
+                        return 'from-gray-500 to-slate-500';
+                      };
+
+                      return (
+                        <div key={index} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                          <div className="flex items-center space-x-3 mb-3">
+                            <div className={`w-8 h-8 bg-gradient-to-r ${getSectionColor(section.title)} rounded-lg flex items-center justify-center text-white text-sm`}>
+                              {getSectionIcon(section.title)}
+                            </div>
+                            <h3 className="font-heading font-semibold text-gray-900 text-base">
+                              {section.title}
+                            </h3>
+                          </div>
+                          
+                          <div className="text-gray-700 text-sm leading-relaxed">
+                            {section.title.toLowerCase().includes('best for') ? (
+                              // Format "Best For" as a list
+                              <div className="grid gap-2">
+                                {section.content.split('*').filter(item => item.trim() && item.includes(':')).map((item, idx) => {
+                                  const [title, description] = item.split(':');
+                                  return (
+                                    <div key={idx} className="flex items-start space-x-2 p-2 bg-gray-50 rounded-lg">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                                      <div>
+                                        <span className="font-semibold text-gray-900">{title.trim()}</span>
+                                        <span className="text-gray-600">: {description.trim()}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : section.title.toLowerCase().includes('tips') ? (
+                              // Format tips as a list
+                              <div className="grid gap-2">
+                                {section.content.split('*').filter(item => item.trim() && item.includes(':')).map((tip, idx) => {
+                                  const [title, description] = tip.split(':');
+                                  return (
+                                    <div key={idx} className="flex items-start space-x-2 p-2 bg-blue-50 rounded-lg">
+                                      <div className="w-2 h-2 bg-cyan-500 rounded-full mt-2 flex-shrink-0"></div>
+                                      <div>
+                                        <span className="font-semibold text-gray-900">{title.trim()}</span>
+                                        <span className="text-gray-600">: {description.trim()}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              // Regular paragraph content
+                              <p className="whitespace-pre-line">{section.content}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl">🤖</span>
+                  </div>
+                  <p className="text-gray-500 font-medium">No AI insights available at the moment.</p>
+                  <p className="text-gray-400 text-sm">Try refreshing or check back later.</p>
+                </div>
+              )}
+
+              {/* Quick Stats Grid */}
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">
+                  <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-lg mx-auto mb-2">
+                    <Star className="w-4 h-4 text-yellow-600" />
+                  </div>
+                  <div className="text-lg font-bold text-gray-900">{insights.averageRating.toFixed(1)}</div>
+                  <div className="text-xs text-gray-500">Avg Rating</div>
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg mx-auto mb-2">
+                    <MessageCircle className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="text-lg font-bold text-gray-900">{insights.totalReviews}</div>
+                  <div className="text-xs text-gray-500">Reviews</div>
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">
+                  <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-lg mx-auto mb-2">
+                    <Calendar className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div className="text-lg font-bold text-gray-900 text-xs">{insights.bestTime}</div>
+                  <div className="text-xs text-gray-500">Best Time</div>
+                </div>
+
+                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">
+                  <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-lg mx-auto mb-2">
+                    <MapPin className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div className="text-lg font-bold text-gray-900">{locationJourneys.length}</div>
+                  <div className="text-xs text-gray-500">Journeys</div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="font-body font-medium text-gray-700">
-                    Average Rating
-                  </span>
-                  <div className="flex items-center space-x-1">
-                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                    <span className="font-body font-bold">
-                      {insights.averageRating.toFixed(1)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="font-body font-medium text-gray-700">
-                    Total Reviews
-                  </span>
-                  <span className="font-body font-bold">
-                    {insights.totalReviews}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="font-body font-medium text-gray-700">
-                    Best Time to Visit
-                  </span>
-                  <span className="font-body font-bold">
-                    {insights.bestTime}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="font-body font-medium text-gray-700 block mb-2">
-                    Popular Themes
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {insights.topTags.slice(0, 3).map((tag, index) => (
+              {/* Popular Tags */}
+              {insights.topTags.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Popular Themes</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {insights.topTags.slice(0, 6).map((tag, index) => (
                       <span
                         key={index}
-                        className="px-2 py-1 bg-accent-200 text-gray-700 font-body rounded text-xs"
+                        className="px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium rounded-full text-xs shadow-sm"
                       >
-                        {tag}
+                        #{tag}
                       </span>
                     ))}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 

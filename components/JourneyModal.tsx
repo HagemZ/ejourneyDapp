@@ -10,6 +10,7 @@ import useGetUserData from "@/hooks/useAddress";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { createJourney, uploadImages, checkJourneyProximity } from "../actions/journeyActions";
 import { getReverseGeocode } from "../utils/geocoding";
+import { generateAILocationSummary } from "../utils/aiSummarizer";
 import ShareOptionsModal from "./ShareOptionsModal";
 import { toast } from "sonner";
 
@@ -50,6 +51,8 @@ export default function JourneyModal({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pendingJourneyData, setPendingJourneyData] = useState<any>(null);
+  const [aiSuggestion, setAiSuggestion] = useState<string>('');
+  const [loadingAI, setLoadingAI] = useState(false);
   
   // Proximity check states
   const [showProximityWarning, setShowProximityWarning] = useState(false);
@@ -276,6 +279,35 @@ export default function JourneyModal({
     }
   };
 
+  // Generate AI suggestion for location
+  const generateAISuggestion = async (locationName: string, description: string) => {
+    setLoadingAI(true);
+    try {
+      const result = await generateAILocationSummary(locationName, description);
+      if (result.success && result.summary) {
+        setAiSuggestion(result.summary);
+      }
+    } catch (error) {
+      console.error('Error generating AI suggestion:', error);
+    } finally {
+      setLoadingAI(false);
+    }
+  };
+
+  // Generate AI suggestion when description changes and location is available
+  React.useEffect(() => {
+    const locationName = selectedLocation?.name || 
+                        (verificationLocation ? 'Current Location' : null);
+    
+    if (locationName && formik.values.description.length > 20) {
+      const timeoutId = setTimeout(() => {
+        generateAISuggestion(locationName, formik.values.description);
+      }, 1000); // Debounce for 1 second
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [formik.values.description, selectedLocation, verificationLocation]);
+
   React.useEffect(() => {
     // Auto-verify location when using GPS coordinates without a selected location
     if (!selectedLocation && (verificationLocation || coordinates)) {
@@ -448,7 +480,7 @@ export default function JourneyModal({
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-transparent resize-none"
               placeholder="Tell us about your experience..."
               aria-invalid={!!(formik.touched.description && formik.errors.description)}
               aria-describedby="description-error"
@@ -459,6 +491,26 @@ export default function JourneyModal({
               </p>
             )}
           </div>
+
+          {/* AI Suggestion */}
+          {(loadingAI || aiSuggestion) && (
+            <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg text-blue-800 text-sm">
+              <div className="flex items-center space-x-2">
+                <strong>🤖 AI Suggestion:</strong>
+                {loadingAI && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                )}
+              </div>
+              {loadingAI ? (
+                <div className="mt-2 space-y-2">
+                  <div className="h-3 bg-blue-200 rounded animate-pulse"></div>
+                  <div className="h-3 bg-blue-200 rounded animate-pulse w-3/4"></div>
+                </div>
+              ) : (
+                <p className="mt-2">{aiSuggestion}</p>
+              )}
+            </div>
+          )}
 
           {/* Rating */}
           <div>

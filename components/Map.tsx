@@ -46,6 +46,26 @@ export default function Map({
   const accuracyCircleFeatureRef = useRef<Feature | null>(null);
   const [isUpdatingView, setIsUpdatingView] = useState(false);
   const [isMapInitialized, setIsMapInitialized] = useState(false);
+  const [currentZoom, setCurrentZoom] = useState(viewState.zoom);
+
+  // Function to calculate icon scale based on zoom level
+  const getIconScale = (zoom: number, baseScale: number = 1) => {
+    // Scale ranges:
+    // Zoom 5-8: 0.3-0.6x scale (very small for country/state level)
+    // Zoom 9-12: 0.6-1.0x scale (normal for city level)
+    // Zoom 13-16: 1.0-1.3x scale (larger for street level)
+    // Zoom 17+: 1.3x scale (largest for building level)
+    
+    if (zoom <= 8) {
+      return baseScale * (0.3 + (zoom - 5) * 0.1); // 0.3x to 0.6x
+    } else if (zoom <= 12) {
+      return baseScale * (0.6 + (zoom - 8) * 0.1); // 0.6x to 1.0x
+    } else if (zoom <= 16) {
+      return baseScale * (1.0 + (zoom - 12) * 0.075); // 1.0x to 1.3x
+    } else {
+      return baseScale * 1.3; // Max 1.3x scale
+    }
+  };
 
   // Remove the duplicate geolocation hook and state since we're receiving user location as props
   // const { coordinates, getCurrentLocation } = useGeolocation();
@@ -95,6 +115,7 @@ export default function Map({
       viewChangeTimeout = setTimeout(() => {
         const center = toLonLat(map.getView().getCenter()!);
         const zoom = map.getView().getZoom()!;
+        setCurrentZoom(zoom); // Update current zoom state
         onViewStateChange({ center: [center[0], center[1]], zoom });
       }, 100);
     };
@@ -150,7 +171,7 @@ export default function Map({
               <circle cx="12" cy="12" r="3" fill="white"/>
             </svg>
           `)}`,
-          scale: 1,
+          scale: getIconScale(currentZoom, 1),
         }),
         text: new Text({
           text: `User Location ${userLocationAccuracy ? `(±${Math.round(userLocationAccuracy)}m)` : ''}`,
@@ -208,7 +229,7 @@ export default function Map({
     userLocationLayerRef.current = userLocationLayer;
     userLocationFeatureRef.current = userLocationFeature;
 
-  }, [userLocation, userLocationAccuracy, isMapInitialized]);
+  }, [userLocation, userLocationAccuracy, isMapInitialized, currentZoom]);
 
   // Update journey markers
   useEffect(() => {
@@ -251,7 +272,7 @@ export default function Map({
                 }</text>
               </svg>
             `)}`,
-            scale: selectedJourney?.id === journey.id ? 1.2 : 1,
+            scale: getIconScale(currentZoom, selectedJourney?.id === journey.id ? 1.2 : 1),
           }),
           text: new Text({
             text: `${
@@ -312,7 +333,7 @@ export default function Map({
     return () => {
       map.un("click", clickHandler);
     };
-  }, [journeys, selectedJourney, isMapInitialized]);
+  }, [journeys, selectedJourney, isMapInitialized, currentZoom]);
 
   // Update view when viewState changes externally
   useEffect(() => {

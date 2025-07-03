@@ -53,19 +53,19 @@ export interface Review {
   id: string;
   journeyId: string;
   userId: string;
-  type: 'upvote' | 'downvote' | 'review';
+  voteType: 'upvote' | 'downvote' | 'review';
   rating?: number;
   comment?: string;
   images?: string[];
   createdAt: Date;
   // User info from backend
-  userName?: string;
-  userEmail?: string;
+  authorName?: string;
+  authorEmail?: string;
 }
 
 export interface CreateReviewRequest {
   journeyId: string;
-  type: 'upvote' | 'downvote' | 'review';
+  voteType: 'upvote' | 'downvote' | 'review';
   rating?: number;
   comment?: string;
   images?: string[];

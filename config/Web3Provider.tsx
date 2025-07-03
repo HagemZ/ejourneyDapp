@@ -15,6 +15,7 @@ export const config = defaultConfig({
   xellarAppId,
   xellarEnv: "sandbox",
   chains: [sepolia, liskSepolia],
+  ssr: true
 }) as Config;
 
 const queryClient = new QueryClient();
