@@ -159,3 +159,159 @@ export async function fetchJourneys(params: FetchJourneysRequest = {}): Promise<
     };
   }
 }
+
+export interface CheckProximityRequest {
+  latitude: number;
+  longitude: number;
+  radiusMeters?: number;
+}
+
+export interface CheckProximityResponse {
+  success: boolean;
+  hasNearbyJourneys: boolean;
+  nearbyJourneys: Journey[];
+  count: number;
+  radiusMeters: number;
+  canCreateNew: boolean; // New field to indicate if new journey can be created
+  error?: string;
+}
+
+export async function checkJourneyProximity(data: CheckProximityRequest): Promise<CheckProximityResponse> {
+  try {
+    const requestData = {
+      ...data,
+      radiusMeters: data.radiusMeters || 20 // Default to 20 meters
+    };
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/check-proximity`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('Proximity check result:', result);
+
+    return {
+      success: true,
+      hasNearbyJourneys: result.hasNearbyJourneys,
+      nearbyJourneys: result.nearbyJourneys || [],
+      count: result.count || 0,
+      radiusMeters: result.radiusMeters || 20,
+      canCreateNew: result.canCreateNew || false
+    };
+
+  } catch (error) {
+    console.error('Error checking journey proximity:', error);
+    return {
+      success: false,
+      hasNearbyJourneys: false,
+      nearbyJourneys: [],
+      count: 0,
+      radiusMeters: 20,
+      canCreateNew: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+export interface CreateReviewRequest {
+  journeyId: string;
+  userId: string;
+  rating: number;
+  comment?: string;
+  images?: string[];
+  voteType?: 'upvote' | 'downvote' | 'review';
+}
+
+export interface CreateReviewResponse {
+  success: boolean;
+  reviewId?: string;
+  error?: string;
+}
+
+export async function createReview(data: CreateReviewRequest): Promise<CreateReviewResponse> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${data.journeyId}/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: result.error || 'Failed to create review',
+      };
+    }
+
+    return {
+      success: true,
+      reviewId: result.reviewId,
+    };
+  } catch (error) {
+    console.error('Error creating review:', error);
+    return {
+      success: false,
+      error: 'Network error occurred',
+    };
+  }
+}
+
+export interface FetchReviewsRequest {
+  journeyId: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface FetchReviewsResponse {
+  success: boolean;
+  reviews?: any[];
+  error?: string;
+}
+
+export async function fetchReviews(params: FetchReviewsRequest): Promise<FetchReviewsResponse> {
+  try {
+    const searchParams = new URLSearchParams();
+    
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+    if (params.offset) searchParams.append('offset', params.offset.toString());
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${params.journeyId}/reviews?${searchParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: result.error || 'Failed to fetch reviews',
+      };
+    }
+
+    return {
+      success: true,
+      reviews: result.reviews || [],
+    };
+  } catch (error) {
+    console.error('Error fetching reviews:', error);
+    return {
+      success: false,
+      error: 'Network error occurred while fetching reviews',
+    };
+  }
+}

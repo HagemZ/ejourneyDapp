@@ -31,6 +31,10 @@ export interface Journey {
   verifiedLocation: boolean;
   authorName?: string; // Author's full name from backend
   authorEmail?: string; // Author's email from backend
+  // New fields for unique location system
+  totalVotes: number;
+  averageRating: number;
+  reviewCount: number;
 }
 
 export interface LocationSuggestion {
@@ -43,4 +47,30 @@ export interface LocationSuggestion {
 export interface MapViewState {
   center: [number, number];
   zoom: number;
+}
+
+export interface Review {
+  id: string;
+  journeyId: string;
+  userId: string;
+  type: 'upvote' | 'downvote' | 'review';
+  rating?: number;
+  comment?: string;
+  images?: string[];
+  createdAt: Date;
+  // User info from backend
+  userName?: string;
+  userEmail?: string;
+}
+
+export interface CreateReviewRequest {
+  journeyId: string;
+  type: 'upvote' | 'downvote' | 'review';
+  rating?: number;
+  comment?: string;
+  images?: string[];
+}
+
+export interface FetchReviewsRequest {
+  journeyId: string;
 }

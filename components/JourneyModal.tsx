@@ -8,7 +8,8 @@ import { Journey, LocationSuggestion } from "../types";
 // import { useAuth } from "@/hooks/useAuth";
 import useGetUserData from "@/hooks/useAddress";
 import { useGeolocation } from "@/hooks/useGeolocation";
-import { createJourney, uploadImages } from "../actions/journeyActions";
+import { createJourney, uploadImages, checkJourneyProximity } from "../actions/journeyActions";
+import { getReverseGeocode } from "../utils/geocoding";
 import ShareOptionsModal from "./ShareOptionsModal";
 import { toast } from "sonner";
 
@@ -20,6 +21,7 @@ interface JourneyModalProps {
   ) => void;
   selectedLocation?: LocationSuggestion;
   verificationLocation?: [number, number] | null;
+  onViewJourney?: (journey: Journey) => void;
 }
 
 export default function JourneyModal({
@@ -28,6 +30,7 @@ export default function JourneyModal({
   onJourneyCreate,
   selectedLocation,
   verificationLocation,
+  onViewJourney,
 }: JourneyModalProps) {
   // Debug logging
   console.log('JourneyModal props:', {
@@ -47,6 +50,14 @@ export default function JourneyModal({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pendingJourneyData, setPendingJourneyData] = useState<any>(null);
+  
+  // Proximity check states
+  const [showProximityWarning, setShowProximityWarning] = useState(false);
+  const [nearbyJourneys, setNearbyJourneys] = useState<any[]>([]);
+  const [checkingProximity, setCheckingProximity] = useState(false);
+  
+  // Location name loading state
+  const [loadingLocationName, setLoadingLocationName] = useState(false);
 
   const formik = useFormik({
     initialValues: {
@@ -113,13 +124,31 @@ export default function JourneyModal({
       if (!selectedLocation && (verificationLocation || coordinates)) {
         const locationCoords = verificationLocation || coordinates;
         if (locationCoords) {
-          locationToUse = {
-            name: `Current Location (${locationCoords[1].toFixed(4)}, ${locationCoords[0].toFixed(4)})`,
-            coordinates: locationCoords,
-            country: "Unknown", // Adding required country property
-            city: "Unknown" // Adding required city property
-          };
-          console.log('Using current location:', locationToUse);
+          setLoadingLocationName(true);
+          try {
+            // Try to get a meaningful location name using reverse geocoding
+            const geocodeResult = await getReverseGeocode(locationCoords[1], locationCoords[0]);
+            
+            locationToUse = {
+              name: geocodeResult.locationName || `Location (${locationCoords[1].toFixed(4)}, ${locationCoords[0].toFixed(4)})`,
+              coordinates: locationCoords,
+              country: geocodeResult.country || "Unknown",
+              city: geocodeResult.city || "Unknown"
+            };
+            console.log('Resolved location name:', geocodeResult);
+          } catch (error) {
+            console.error('Failed to reverse geocode:', error);
+            // Fallback to a more user-friendly name
+            locationToUse = {
+              name: `My Location`,
+              coordinates: locationCoords,
+              country: "Unknown",
+              city: "Unknown"
+            };
+          } finally {
+            setLoadingLocationName(false);
+          }
+          console.log('Using location:', locationToUse);
         }
       }
 
@@ -127,6 +156,29 @@ export default function JourneyModal({
         toast.error('Please enable location access or select a location on the map');
         return;
       }
+
+      // Check for nearby journeys first
+      setCheckingProximity(true);
+      try {
+        const proximityResult = await checkJourneyProximity({
+          latitude: locationToUse.coordinates[1],
+          longitude: locationToUse.coordinates[0],
+          radiusMeters: 20 // Changed to 20 meters
+        });
+
+        if (proximityResult.success && proximityResult.hasNearbyJourneys) {
+          // Show proximity warning - no new journey allowed within 20m
+          setNearbyJourneys(proximityResult.nearbyJourneys);
+          setShowProximityWarning(true);
+          setPendingJourneyData({ ...data, locationToUse });
+          setCheckingProximity(false);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking proximity:', error);
+        // Continue with journey creation if proximity check fails
+      }
+      setCheckingProximity(false);
 
       // Store form data and location to use
       console.log('Opening share modal...');
@@ -517,7 +569,7 @@ export default function JourneyModal({
             </button>
             <button
               type="submit"
-              disabled={formik.isSubmitting || (!selectedLocation && !verificationLocation && !coordinates)}
+              disabled={formik.isSubmitting || checkingProximity || loadingLocationName || (!selectedLocation && !verificationLocation && !coordinates)}
               className="flex-1 px-4 py-2 bg-blue-300 hover:bg-blue-600 text-white rounded-lg font-body font-medium transition-colors duration-200 disabled:opacity-50"
               onClick={(e) => {
                 console.log('Submit button clicked');
@@ -529,11 +581,97 @@ export default function JourneyModal({
                 console.log('Current coordinates:', coordinates);
               }}
             >
-              {formik.isSubmitting ? 'Processing...' : 'Share Journey'}
+              {loadingLocationName ? 'Getting location...' : checkingProximity ? 'Checking location...' : formik.isSubmitting ? 'Processing...' : 'Share Journey'}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Proximity Warning Modal */}
+      {showProximityWarning && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Location Already Exists
+              </h3>
+              <button
+                onClick={() => {
+                  setShowProximityWarning(false);
+                  setNearbyJourneys([]);
+                  setPendingJourneyData(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-gray-700 mb-3">
+                There {nearbyJourneys.length === 1 ? 'is already a journey' : 'are already journeys'} within 20 meters of this location. Each location can only have one unique journey.
+              </p>
+              <p className="text-sm text-blue-600 mb-3">
+                You can vote or add a review to the existing journey instead of creating a new one.
+              </p>
+
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {nearbyJourneys.map((nearby, index) => (
+                  <div key={index} className="border rounded-lg p-3 bg-gray-50">
+                    <h4 className="font-medium text-gray-900">{nearby.title}</h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      By {nearby.authorName || 'Anonymous'} • {nearby.distance}m away
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                      {nearby.description}
+                    </p>
+                    <div className="flex items-center mt-2">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 ${
+                            i < nearby.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                          }`}
+                        />
+                      ))}
+                      <span className="text-sm text-gray-600 ml-2">{nearby.rating}/5</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowProximityWarning(false);
+                  setNearbyJourneys([]);
+                  setPendingJourneyData(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  // Navigate to the existing journey for review/voting
+                  const nearestJourney = nearbyJourneys[0];
+                  setShowProximityWarning(false);
+                  onClose(); // Close the modal
+                  
+                  // Open the journey details modal for reviewing
+                  if (onViewJourney && nearestJourney) {
+                    onViewJourney(nearestJourney);
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                View & Review
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Share Options Modal */}
       <ShareOptionsModal

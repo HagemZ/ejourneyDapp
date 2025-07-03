@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   MapPin,
@@ -9,13 +9,20 @@ import {
   User,
   Shield,
   ExternalLink,
+  ThumbsUp,
+  ThumbsDown,
+  MessageCircle,
 } from "lucide-react";
-import { Journey, User as UserType } from "../types";
+import { Journey, User as UserType, Review } from "../types";
 import { format } from "date-fns";
 import {
   summarizeLocationReviews,
   generateInsights,
 } from "@/utils/aiSummarizer";
+import { fetchReviews, createReview } from "../actions/journeyActions";
+import ReviewModal from "./ReviewModal";
+import useGetUserData from "@/hooks/useAddress";
+import { toast } from "sonner";
 
 interface JourneyDetailsModalProps {
   journey: Journey | null;
@@ -23,6 +30,7 @@ interface JourneyDetailsModalProps {
   allJourneys: Journey[];
   isOpen: boolean;
   onClose: () => void;
+  onJourneyUpdated?: () => void; // Optional callback to refresh journey data
 }
 
 export default function JourneyDetailsModal({
@@ -31,7 +39,75 @@ export default function JourneyDetailsModal({
   allJourneys,
   isOpen,
   onClose,
+  onJourneyUpdated,
 }: JourneyDetailsModalProps) {
+  const { users } = useGetUserData();
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  // Fetch reviews when modal opens
+  useEffect(() => {
+    if (isOpen && journey) {
+      loadReviews();
+    }
+  }, [isOpen, journey]);
+
+  const loadReviews = async () => {
+    if (!journey) return;
+    
+    setLoadingReviews(true);
+    try {
+      const result = await fetchReviews({ journeyId: journey.id });
+      if (result.success) {
+        setReviews(result.reviews || []);
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const handleReviewSubmitted = () => {
+    loadReviews(); // Reload reviews after submission
+    onJourneyUpdated?.(); // Notify parent to refresh journey data
+  };
+
+  const handleQuickVote = async (voteType: 'upvote' | 'downvote') => {
+    if (!users?.id) {
+      toast.error('Please connect your wallet to vote');
+      return;
+    }
+
+    if (!journey) {
+      toast.error('Journey not found');
+      return;
+    }
+
+    try {
+      const result = await createReview({
+        journeyId: journey.id,
+        userId: users.id,
+        voteType,
+        rating: voteType === 'upvote' ? 5 : 1 // Auto-assign rating for quick votes
+      });
+
+      if (result.success) {
+        // Reload reviews to show the new vote
+        loadReviews();
+        // Notify parent to refresh journey data for updated stats
+        onJourneyUpdated?.();
+        toast.success(`${voteType === 'upvote' ? 'Upvoted' : 'Downvoted'} successfully!`);
+      } else {
+        toast.error(result.error || `Failed to ${voteType}`);
+      }
+    } catch (error) {
+      console.error(`Error ${voteType}:`, error);
+      toast.error(`Failed to ${voteType}. Please try again.`);
+    }
+  };
+
   if (!isOpen || !journey || !author) return null;
 
   // Get all journeys for the same location for AI insights
@@ -176,6 +252,124 @@ export default function JourneyDetailsModal({
             </div>
           )}
 
+          {/* Voting and Review Section */}
+          <div className="bg-gray-50 p-6 rounded-xl mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-heading font-semibold text-gray-900">
+                Community Feedback
+              </h2>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <ThumbsUp className="w-4 h-4" />
+                  <span>{journey.totalVotes || 0} votes</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{journey.reviewCount || 0} reviews</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                  <span>{Number(journey.averageRating || 0).toFixed(1)}/5</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Vote Buttons */}
+            <div className="flex space-x-3 mb-6">
+              <button
+                onClick={() => setIsReviewModalOpen(true)}
+                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Write Review</span>
+              </button>
+              <button
+                onClick={() => handleQuickVote('upvote')}
+                className="px-4 py-3 border border-green-300 text-green-700 rounded-lg hover:bg-green-50 transition-colors flex items-center space-x-2"
+              >
+                <ThumbsUp className="w-4 h-4" />
+                <span>Upvote</span>
+              </button>
+              <button
+                onClick={() => handleQuickVote('downvote')}
+                className="px-4 py-3 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-2"
+              >
+                <ThumbsDown className="w-4 h-4" />
+                <span>Downvote</span>
+              </button>
+            </div>
+
+            {/* Reviews List */}
+            <div className="space-y-4">
+              <h3 className="font-body font-semibold text-gray-800">Recent Reviews</h3>
+              
+              {loadingReviews ? (
+                <div className="text-center py-4 text-gray-500">Loading reviews...</div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>No reviews yet. Be the first to share your experience!</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-64 overflow-y-auto">
+                  {reviews.slice(0, 5).map((review) => (
+                    <div key={review.id} className="bg-white p-4 rounded-lg border">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                            <User className="w-4 h-4 text-gray-600" />
+                          </div>
+                          <span className="font-medium text-gray-900">
+                            {review.userName || 'Anonymous'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {format(new Date(review.createdAt), "MMM d, yyyy")}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          {review.type === 'upvote' && (
+                            <ThumbsUp className="w-4 h-4 text-green-600" />
+                          )}
+                          {review.type === 'downvote' && (
+                            <ThumbsDown className="w-4 h-4 text-red-600" />
+                          )}
+                          {review.type === 'review' && review.rating && (
+                            <div className="flex items-center">
+                              <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                              <span className="text-sm font-medium ml-1">{review.rating}/5</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {review.comment && (
+                        <p className="text-gray-700 text-sm">{review.comment}</p>
+                      )}
+                      {review.images && review.images.length > 0 && (
+                        <div className="flex space-x-2 mt-2">
+                          {review.images.slice(0, 3).map((image, idx) => (
+                            <img
+                              key={idx}
+                              src={image}
+                              alt={`Review image ${idx + 1}`}
+                              className="w-16 h-16 object-cover rounded"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {reviews.length > 5 && (
+                    <div className="text-center">
+                      <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        Load more reviews
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* AI Insights */}
           <div className="bg-gradient-to-r from-primary-50 to-accent-50 p-6 rounded-xl">
             <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center space-x-2">
@@ -242,8 +436,40 @@ export default function JourneyDetailsModal({
               </div>
             </div>
           </div>
+
+          {/* Reviews Section */}
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-heading font-semibold text-gray-900">
+                Reviews
+              </h2>
+              <button
+                onClick={() => setIsReviewModalOpen(true)}
+                className="flex items-center space-x-2 text-primary-600 hover:text-primary-800 transition-colors duration-200"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span className="font-body text-sm">Write a Review</span>
+              </button>
+            </div>
+
+            {loadingReviews ? (
+              <p className="text-center text-gray-500 py-4">Loading reviews...</p>
+            ) : reviews.length === 0 ? (
+              <p className="text-center text-gray-500 py-4">
+                Be the first to review this journey!
+              </p>
+            ) : null /* Reviews are already displayed above */}
+          </div>
         </div>
       </div>
+
+      {/* Review Modal */}
+      <ReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        journey={journey}
+        onReviewSubmitted={handleReviewSubmitted}
+      />
     </div>
   );
 }

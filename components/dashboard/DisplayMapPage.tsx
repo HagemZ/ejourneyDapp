@@ -176,19 +176,16 @@ export default function DisplayMap() {
     const getAuthor = (journey: Journey) => {
         // Use real author data from the journey if available
         if (journey.authorName || journey.authorEmail) {
-            const author = {
+            return {
                 id: journey.userId,
                 name: journey.authorName || 'Anonymous User',
                 email: journey.authorEmail || 'user@example.com',
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${journey.userId}`,
                 verified: true
             };
-            console.log('Using real author data:', author);
-            return author;
         }
         
         // Fallback to mock user if no author data available
-        console.log('Falling back to mock user for journey:', journey.id);
         return mockUsers.find((user) => user.id === journey.userId) || mockUsers[0];
     };
 
@@ -517,6 +514,10 @@ export default function DisplayMap() {
               onJourneyCreate={handleJourneyCreate}
               selectedLocation={selectedLocation}
               verificationLocation={verificationLocation}
+              onViewJourney={(journey) => {
+                setSelectedJourney(journey);
+                setIsJourneyDetailsModalOpen(true);
+              }}
             />
 
             <JourneyDetailsModal
