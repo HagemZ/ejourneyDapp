@@ -33,21 +33,23 @@ export default function JourneyModal({
   verificationLocation,
   onViewJourney,
 }: JourneyModalProps) {
-  // Debug logging
-  console.log('JourneyModal props:', {
-    isOpen,
-    selectedLocation,
-    verificationLocation
-  });
+  // Debug logging - only when modal is open
+  React.useEffect(() => {
+    if (isOpen) {
+      console.log('JourneyModal props:', {
+        isOpen,
+        selectedLocation,
+        verificationLocation
+      });
+    }
+  }, [isOpen, selectedLocation, verificationLocation]);
 
   // const { user } = useAuth();
   const { users } = useGetUserData();
   const { coordinates, loading, error, getCurrentLocation } = useGeolocation();
   
   // If we have verificationLocation and no selectedLocation, auto-verify the location
-  const [locationVerified, setLocationVerified] = useState(
-    !selectedLocation && !!verificationLocation
-  );
+  const [locationVerified, setLocationVerified] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pendingJourneyData, setPendingJourneyData] = useState<any>(null);
@@ -190,6 +192,26 @@ export default function JourneyModal({
     },
   });
 
+  // Reset modal state when modal closes
+  React.useEffect(() => {
+    if (!isOpen) {
+      // Reset all internal state when modal is closed
+      setLocationVerified(false);
+      setAiSuggestion('');
+      setLoadingAI(false);
+      setShowProximityWarning(false);
+      setNearbyJourneys([]);
+      setCheckingProximity(false);
+      setPendingJourneyData(null);
+      setSubmitting(false);
+      setLoadingLocationName(false);
+      // Reset form separately to avoid dependency issues
+      setTimeout(() => {
+        formik.resetForm();
+      }, 0);
+    }
+  }, [isOpen]); // Remove formik dependency to prevent infinite re-renders
+
   const handleLocationVerification = () => {
     getCurrentLocation();
   };
@@ -240,7 +262,11 @@ export default function JourneyModal({
           name: locationToUse.name,
           coordinates: locationToUse.coordinates,
         },
-        verifiedLocation: !selectedLocation && (coordinates || verificationLocation) ? true : locationVerified, // Auto-verify GPS locations
+        verifiedLocation: 
+          // GPS-only locations (no selectedLocation) are auto-verified if using GPS
+          !selectedLocation && (coordinates || verificationLocation) ? true : 
+          // Selected locations require manual verification
+          locationVerified,
         verificationLocation: !selectedLocation && (coordinates || verificationLocation) 
           ? (verificationLocation || coordinates || undefined) 
           : (verificationLocation || undefined),
@@ -311,11 +337,13 @@ export default function JourneyModal({
   React.useEffect(() => {
     // Auto-verify location when using GPS coordinates without a selected location
     if (!selectedLocation && (verificationLocation || coordinates)) {
-      setLocationVerified(true);
-    } else if (selectedLocation) {
+      if (!locationVerified) {
+        setLocationVerified(true);
+      }
+    } else if (selectedLocation && locationVerified) {
       setLocationVerified(false); // Reset for selected locations
     }
-  }, [selectedLocation, verificationLocation, coordinates]);
+  }, [selectedLocation, verificationLocation, coordinates, locationVerified]);
 
   React.useEffect(() => {
     if (coordinates && selectedLocation) {
@@ -327,12 +355,14 @@ export default function JourneyModal({
         selectedLocation.coordinates[0]
       );
 
-      // If within 1km, consider location verified
-      if (distance < 1) {
-        setLocationVerified(true);
+      // Much stricter verification - user must be within 50 meters to be verified
+      const shouldBeVerified = distance <= 0.05; // 0.05 km = 50 meters
+      
+      if (shouldBeVerified !== locationVerified) {
+        setLocationVerified(shouldBeVerified);
       }
     }
-  }, [coordinates, selectedLocation]);
+  }, [coordinates, selectedLocation, locationVerified]);
 
   if (!isOpen || !users) return null;
 
@@ -377,7 +407,11 @@ export default function JourneyModal({
                   type="button"
                   onClick={handleLocationVerification}
                   disabled={loading}
-                  className="flex items-center px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 space-x-2 text-sm text-primary-400 hover:text-primary-500"
+                  className={`flex items-center px-4 py-2 space-x-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                    locationVerified
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
                 >
                   <Navigation className="w-4 h-4" />
                   <span>{loading ? "Verifying..." : "Verify Location"}</span>
@@ -385,6 +419,11 @@ export default function JourneyModal({
                 {locationVerified && (
                   <span className="text-sm text-green-600 font-medium">
                     ✓ Location Verified
+                  </span>
+                )}
+                {coordinates && selectedLocation && !locationVerified && (
+                  <span className="text-sm text-red-600 font-medium">
+                    ✗ Location Not Verified (You're not at this location)
                   </span>
                 )}
                 {error && <span className="text-sm text-red-500">{error}</span>}
@@ -441,6 +480,36 @@ export default function JourneyModal({
               Lat: {coordinates[1].toFixed(6)}
               <br />
               Lng: {coordinates[0].toFixed(6)}
+              {selectedLocation && (
+                <div className="mt-2 text-xs">
+                  <strong>Distance to selected location:</strong>{' '}
+                  {selectedLocation && (
+                    (calculateDistance(
+                      coordinates[1],
+                      coordinates[0],
+                      selectedLocation.coordinates[1],
+                      selectedLocation.coordinates[0]
+                    ) * 1000).toFixed(0)
+                  )}m
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Verification Status Warning */}
+          {selectedLocation && coordinates && !locationVerified && (
+            <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-center space-x-2 mb-2">
+                <span className="text-orange-600">⚠️</span>
+                <span className="font-medium text-orange-800">Unverified Location</span>
+              </div>
+              <p className="text-sm text-orange-700">
+                You're not currently at the selected location. Your journey will be marked as "Not Verified" 
+                until you visit the actual location and verify it.
+              </p>
+              <p className="text-xs text-orange-600 mt-1">
+                To verify: Be within 50 meters of the location and click "Verify Location"
+              </p>
             </div>
           )}
 
@@ -611,7 +680,29 @@ export default function JourneyModal({
           </div>
 
           {/* Submit Button */}
-          <div className="flex space-x-3">
+          <div className="space-y-3">
+            {/* Verification Status Summary */}
+            {selectedLocation && (
+              <div className={`p-3 rounded-lg border text-sm ${
+                locationVerified 
+                  ? 'bg-green-50 border-green-200 text-green-800' 
+                  : 'bg-gray-50 border-gray-200 text-gray-700'
+              }`}>
+                <div className="flex items-center space-x-2">
+                  <span>{locationVerified ? '✅' : '📍'}</span>
+                  <span className="font-medium">
+                    Journey will be marked as: {locationVerified ? 'Verified' : 'Not Verified'}
+                  </span>
+                </div>
+                {!locationVerified && (
+                  <p className="text-xs mt-1 text-gray-600">
+                    You can verify later by visiting the location
+                  </p>
+                )}
+              </div>
+            )}
+            
+            <div className="flex space-x-3">
             <button
               type="button"
               onClick={onClose}
@@ -635,6 +726,7 @@ export default function JourneyModal({
             >
               {loadingLocationName ? 'Getting location...' : checkingProximity ? 'Checking location...' : formik.isSubmitting ? 'Processing...' : 'Share Journey'}
             </button>
+            </div>
           </div>
         </form>
       </div>

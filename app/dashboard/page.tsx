@@ -11,6 +11,16 @@ export default function Page() {
     const { users, loading: userDataLoading, error } = useGetUserData();
     const [isInitialized, setIsInitialized] = useState(false);
     const [finalComponent, setFinalComponent] = useState<React.ReactNode>(null);
+    const [isWalletChecking, setIsWalletChecking] = useState(true);
+
+    useEffect(() => {
+        // Initial wallet connection check with timeout
+        const walletCheckTimer = setTimeout(() => {
+            setIsWalletChecking(false);
+        }, 2000); // Give 2 seconds for wallet connection to be determined
+
+        return () => clearTimeout(walletCheckTimer);
+    }, []);
 
     useEffect(() => {
         console.log('State check:', { 
@@ -19,8 +29,15 @@ export default function Page() {
             users, 
             userDataLoading, 
             error,
-            isInitialized 
+            isInitialized,
+            isWalletChecking 
         });
+
+        // Wait for initial wallet check to complete
+        if (isWalletChecking) {
+            console.log('Still checking wallet connection...');
+            return;
+        }
 
         // Wait for wallet connection state to be determined
         if (isConnected === undefined) {
@@ -70,10 +87,13 @@ export default function Page() {
             return;
         }
 
-    }, [address, isConnected, users, userDataLoading, error]);
+    }, [address, isConnected, users, userDataLoading, error, isWalletChecking]);
 
-    // Show loading only when we haven't initialized or when we're waiting for data
-    if (!isInitialized || (isConnected && address && userDataLoading)) {
+    // Show loading when:
+    // 1. Still checking wallet connection initially
+    // 2. Haven't initialized the component yet
+    // 3. Wallet is connected and we're loading user data
+    if (isWalletChecking || !isInitialized || (isConnected && address && userDataLoading)) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
                 <div className="relative">
@@ -96,7 +116,8 @@ export default function Page() {
                         Preparing your journey...
                     </h2>
                     <p className="text-gray-600 text-sm">
-                        {!isConnected ? 'Checking wallet connection...' : 
+                        {isWalletChecking ? 'Checking wallet connection...' : 
+                         !isConnected ? 'Waiting for wallet...' : 
                          userDataLoading ? 'Loading your profile...' :
                          'Initializing app...'}
                     </p>

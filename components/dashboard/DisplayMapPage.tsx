@@ -12,6 +12,7 @@ import Map from "@/components/Map";
 import JourneyModal from "@/components/JourneyModal";
 import JourneyCard from "@/components/JourneyCard";
 import JourneyDetailsModal from "@/components/JourneyDetailsModal";
+import LocationConfirmationPopup from "@/components/LocationConfirmationPopup";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 
@@ -32,12 +33,15 @@ export default function DisplayMap() {
     const [initialLocationSet, setInitialLocationSet] = useState(false);
     const [centerMapRequested, setCenterMapRequested] = useState(false);
     const [showAccuracyStatus, setShowAccuracyStatus] = useState(true);
+    const [accuracyStatusVisible, setAccuracyStatusVisible] = useState(true);
     const [journeysLoading, setJourneysLoading] = useState(true);
 
     // Modal states  
     const [isJourneyModalOpen, setIsJourneyModalOpen] = useState(false);
     const [isJourneyDetailsModalOpen, setIsJourneyDetailsModalOpen] = useState(false);
     const [isSidebarJourneyOpen, setIsSidebarJourneyOpen] = useState(false);
+    const [isLocationConfirmationOpen, setIsLocationConfirmationOpen] = useState(false);
+    const [pendingLocationCoordinates, setPendingLocationCoordinates] = useState<[number, number] | null>(null);
 
     // Map state
     const [mapViewState, setMapViewState] = useState<MapViewState>({
@@ -127,23 +131,73 @@ export default function DisplayMap() {
         }
     }, [users]);
 
+    // Auto-slideout effect for high accuracy location notification
+    useEffect(() => {
+        if (coordinates && accuracy && accuracy <= 100 && showAccuracyStatus && accuracyStatusVisible) {
+            // Show notification immediately when high accuracy is achieved
+            setAccuracyStatusVisible(true);
+            
+            // Start slideout animation after 3 seconds
+            const slideoutTimer = setTimeout(() => {
+                setAccuracyStatusVisible(false);
+                
+                // Completely hide after animation completes
+                const hideTimer = setTimeout(() => {
+                    setShowAccuracyStatus(false);
+                }, 500); // Match animation duration
+                
+                return () => clearTimeout(hideTimer);
+            }, 3000);
+
+            return () => clearTimeout(slideoutTimer);
+        }
+    }, [coordinates, accuracy, showAccuracyStatus, accuracyStatusVisible]);
+
 
     const handleLocationSelect = (location: LocationSuggestion, verificationLocation?: [number, number]) => {
-        setSelectedLocation(location);
-        if (verificationLocation) {
-            setVerificationLocation(verificationLocation);
-        }
-        setMapViewState({
-            center: location.coordinates,
-            zoom: 10,
-        });
+        // If this is a direct location selection (from search, etc.), proceed normally
+        if (location.name !== `Location at ${location.coordinates[1].toFixed(4)}, ${location.coordinates[0].toFixed(4)}`) {
+            setSelectedLocation(location);
+            if (verificationLocation) {
+                setVerificationLocation(verificationLocation);
+            }
+            setMapViewState({
+                center: location.coordinates,
+                zoom: 10,
+            });
 
-        // Open journey modal if user is logged in
+            // Open journey modal if user is logged in
+            if (users) {
+                setIsJourneyModalOpen(true);
+            } else {
+                router.push("/");
+            }
+            return;
+        }
+
+        // This is a map click with basic coordinates - show confirmation popup
         if (users) {
-            setIsJourneyModalOpen(true);
+            setPendingLocationCoordinates(location.coordinates as [number, number]);
+            setIsLocationConfirmationOpen(true);
         } else {
             router.push("/");
         }
+    };
+
+    const handleLocationConfirm = (enhancedLocationData: LocationSuggestion) => {
+        setSelectedLocation(enhancedLocationData);
+        setMapViewState({
+            center: enhancedLocationData.coordinates,
+            zoom: 10,
+        });
+        setIsLocationConfirmationOpen(false);
+        setPendingLocationCoordinates(null);
+        setIsJourneyModalOpen(true);
+    };
+
+    const handleLocationConfirmCancel = () => {
+        setIsLocationConfirmationOpen(false);
+        setPendingLocationCoordinates(null);
     };
 
     const handleJourneyCreate = async (
@@ -293,7 +347,11 @@ export default function DisplayMap() {
 
                             {/* Location accuracy status */}
                             {coordinates && accuracy && !gpsLoading && showAccuracyStatus && (
-                                <div className={`absolute top-20 left-4 right-4 px-4 py-3 rounded-lg z-30 text-sm shadow-lg ${accuracy <= 100
+                                <div className={`absolute top-20 left-4 right-4 px-4 py-3 rounded-lg z-30 text-sm shadow-lg transition-all duration-500 ease-in-out transform ${
+                                    accuracyStatusVisible 
+                                        ? 'translate-x-0 opacity-100' 
+                                        : 'translate-x-full opacity-0'
+                                } ${accuracy <= 100
                                         ? 'bg-green-100 border border-green-400 text-green-700'
                                         : accuracy <= 1000
                                         ? 'bg-yellow-100 border border-yellow-400 text-yellow-700'
@@ -324,7 +382,10 @@ export default function DisplayMap() {
                                             )}
                                         </div>
                                         <button
-                                            onClick={() => setShowAccuracyStatus(false)}
+                                            onClick={() => {
+                                                setAccuracyStatusVisible(false);
+                                                setTimeout(() => setShowAccuracyStatus(false), 500);
+                                            }}
                                             className="ml-3 text-gray-400 hover:text-gray-600 transition-colors"
                                             title="Close"
                                         >
@@ -503,13 +564,20 @@ export default function DisplayMap() {
 
              {users && (
           <>
-           
+            {/* Location Confirmation Popup */}
+            <LocationConfirmationPopup
+              isOpen={isLocationConfirmationOpen}
+              coordinates={pendingLocationCoordinates || [0, 0]}
+              onConfirm={handleLocationConfirm}
+              onCancel={handleLocationConfirmCancel}
+            />
 
             <JourneyModal
               isOpen={isJourneyModalOpen}
               onClose={() => {
                 setIsJourneyModalOpen(false);
                 setVerificationLocation(null);
+                setSelectedLocation(undefined); // Clear selected location
               }}
               onJourneyCreate={handleJourneyCreate}
               selectedLocation={selectedLocation}
