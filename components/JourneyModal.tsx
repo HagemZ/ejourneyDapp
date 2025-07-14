@@ -774,11 +774,11 @@ export default function JourneyModal({
                         <Star
                           key={i}
                           className={`w-4 h-4 ${
-                            i < nearby.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                            i < Math.round(nearby.averageRating || nearby.rating) ? 'text-yellow-400 fill-current' : 'text-gray-300'
                           }`}
                         />
                       ))}
-                      <span className="text-sm text-gray-600 ml-2">{nearby.rating}/5</span>
+                      <span className="text-sm text-gray-600 ml-2">{Number(nearby.averageRating || nearby.rating).toFixed(1)}/5</span>
                     </div>
                   </div>
                 ))}

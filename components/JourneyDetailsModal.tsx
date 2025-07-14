@@ -194,7 +194,7 @@ export default function JourneyDetailsModal({
             <div className="flex items-center space-x-1 bg-yellow-50 px-3 py-1 rounded-full">
               <Star className="w-5 h-5 text-yellow-400 fill-current" />
               <span className="font-body font-bold text-gray-900">
-                {journey.rating}/5
+                {Number(journey.averageRating || journey.rating).toFixed(1)}/5
               </span>
             </div>
           </div>
@@ -547,7 +547,7 @@ export default function JourneyDetailsModal({
               )}
 
               {/* Quick Stats Grid */}
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="mt-6 grid grid-cols-3 gap-4">
                 <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">
                   <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-lg mx-auto mb-2">
                     <Star className="w-4 h-4 text-yellow-600" />
@@ -562,14 +562,6 @@ export default function JourneyDetailsModal({
                   </div>
                   <div className="text-lg font-bold text-gray-900">{insights.totalReviews}</div>
                   <div className="text-xs text-gray-500">Reviews</div>
-                </div>
-
-                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">
-                  <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-lg mx-auto mb-2">
-                    <Calendar className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div className="text-lg font-bold text-gray-900 text-xs">{insights.bestTime}</div>
-                  <div className="text-xs text-gray-500">Best Time</div>
                 </div>
 
                 <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">

@@ -125,16 +125,25 @@ export default function Map({
 
     // Handle map clicks
     map.on("singleclick", (event) => {
-      const coordinate = toLonLat(event.coordinate);
-      const location: LocationSuggestion = {
-        name: `Location at ${coordinate[1].toFixed(4)}, ${coordinate[0].toFixed(
-          4
-        )}`,
-        coordinates: [coordinate[0], coordinate[1]],
-        country: "Unknown",
-        city: "Unknown",
-      };
-      onLocationSelect(location);
+      // Check if we clicked on a journey marker - if so, don't trigger location selection
+      const feature = map.forEachFeatureAtPixel(event.pixel, (feature) => {
+        if (feature.get("type") === "journey") return feature;
+        return null;
+      });
+
+      // Only trigger location selection if we didn't click on a journey marker
+      if (!feature) {
+        const coordinate = toLonLat(event.coordinate);
+        const location: LocationSuggestion = {
+          name: `Location at ${coordinate[1].toFixed(4)}, ${coordinate[0].toFixed(
+            4
+          )}`,
+          coordinates: [coordinate[0], coordinate[1]],
+          country: "Unknown",
+          city: "Unknown",
+        };
+        onLocationSelect(location);
+      }
     });
 
     return () => {
@@ -257,36 +266,115 @@ export default function Map({
       feature.setStyle(
         new Style({
           image: new Icon({
-            anchor: [0.5, 1],
+            anchor: [0.5, 0.65], // Adjusted anchor for the taller SVG with label
             src: `data:image/svg+xml;utf8,${encodeURIComponent(`
-              <svg width="32" height="40" viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg">
-                <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z" fill="${
-                  selectedJourney?.id === journey.id ? "#42A5F5" : "#64B5F6"
-                }"/>
-                <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z" fill="${
-                  selectedJourney?.id === journey.id ? "#42A5F5" : "#64B5F6"
-                }" stroke="#1976D2" stroke-width="1"/>
-                <circle cx="16" cy="16" r="8" fill="white"/>
-                <text x="16" y="20" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="#1976D2">${
-                  journey.rating
-                }</text>
+              <svg width="180" height="80" viewBox="0 0 180 80" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="borderGlow${journey.id}" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#ffaa40;stop-opacity:1" />
+                    <stop offset="50%" style="stop-color:#9c40ff;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#00d4ff;stop-opacity:1" />
+                  </linearGradient>
+                  <linearGradient id="pinGradient${journey.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:${selectedJourney?.id === journey.id ? "#42A5F5" : "#64B5F6"};stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:${selectedJourney?.id === journey.id ? "#1976D2" : "#42A5F5"};stop-opacity:1" />
+                  </linearGradient>
+                  <filter id="glow${journey.id}" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                    <feMerge> 
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                  <filter id="labelGlow${journey.id}" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+                    <feMerge> 
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                
+                <!-- Map Pin -->
+                <g transform="translate(74, 5)">
+                  <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z" 
+                        fill="url(#pinGradient${journey.id})" 
+                        stroke="#1976D2" 
+                        stroke-width="1.5"
+                        filter="url(#glow${journey.id})"/>
+                  <circle cx="16" cy="16" r="8" fill="rgba(255,255,255,0.95)" stroke="#1976D2" stroke-width="1"/>
+                  <text x="16" y="20" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="bold" fill="#1976D2">
+                    ${Number(journey.averageRating || journey.rating).toFixed(1)}
+                  </text>
+                </g>
+                
+                <!-- Futuristic Label Container -->
+                <g transform="translate(90, 48)">
+                  <!-- Animated Border Beam Effect -->
+                  <rect x="-85" y="-8" width="170" height="24" 
+                        fill="rgba(255, 255, 255, 0.85)" 
+                        stroke="url(#borderGlow${journey.id})" 
+                        stroke-width="1.5" 
+                        rx="12" 
+                        ry="12"
+                        filter="url(#labelGlow${journey.id})">
+                    <animate attributeName="stroke-dasharray" 
+                             values="0,340;170,170;340,0" 
+                             dur="3s" 
+                             repeatCount="indefinite"/>
+                    <animate attributeName="stroke-dashoffset" 
+                             values="0;-170;-340" 
+                             dur="3s" 
+                             repeatCount="indefinite"/>
+                  </rect>
+                  
+                  <!-- Inner Glow -->
+                  <rect x="-84" y="-7" width="168" height="22" 
+                        fill="none" 
+                        stroke="rgba(255, 255, 255, 0.5)" 
+                        stroke-width="0.5" 
+                        rx="11" 
+                        ry="11"/>
+                  
+                  <!-- Corner Accents -->
+                  <circle cx="-73" cy="-4" r="1.5" fill="#ffaa40" opacity="0.8">
+                    <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite"/>
+                  </circle>
+                  <circle cx="73" cy="-4" r="1.5" fill="#9c40ff" opacity="0.8">
+                    <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+                  </circle>
+                  <circle cx="-73" cy="12" r="1.5" fill="#00d4ff" opacity="0.8">
+                    <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite"/>
+                  </circle>
+                  <circle cx="73" cy="12" r="1.5" fill="#ffaa40" opacity="0.8">
+                    <animate attributeName="opacity" values="1;0.5;1" dur="1.5s" repeatCount="indefinite"/>
+                  </circle>
+                  
+                  <!-- Label Text -->
+                  <text x="0" y="4" 
+                        text-anchor="middle" 
+                        font-family="system-ui, -apple-system, sans-serif" 
+                        font-size="${currentZoom > 12 ? '11' : '10'}" 
+                        font-weight="600" 
+                        fill="#1a1a1a"
+                        filter="url(#labelGlow${journey.id})">
+                    ${journey.title.length > (currentZoom > 12 ? 20 : 15) ? journey.title.substring(0, currentZoom > 12 ? 17 : 12) + '...' : journey.title}
+                  </text>
+                  
+                  <!-- Text Glow Effect -->
+                  <text x="0" y="4" 
+                        text-anchor="middle" 
+                        font-family="system-ui, -apple-system, sans-serif" 
+                        font-size="${currentZoom > 12 ? '11' : '10'}" 
+                        font-weight="600" 
+                        fill="rgba(106, 64, 255, 0.3)"
+                        opacity="0.6">
+                    ${journey.title.length > (currentZoom > 12 ? 20 : 15) ? journey.title.substring(0, currentZoom > 12 ? 17 : 12) + '...' : journey.title}
+                  </text>
+                </g>
               </svg>
             `)}`,
-            scale: getIconScale(currentZoom, selectedJourney?.id === journey.id ? 1.2 : 1),
-          }),
-          text: new Text({
-            text: `${
-              journey.location.name
-            }\n${journey.location.coordinates[1].toFixed(
-              4
-            )}, ${journey.location.coordinates[0].toFixed(4)}`,
-            offsetY: 45,
-            fill: new Fill({ color: "#000" }),
-            stroke: new Stroke({ color: "#fff", width: 2 }),
-            font: "11px Arial",
-            textAlign: "center",
-            backgroundFill: new Fill({ color: "rgba(255, 255, 255, 0.8)" }),
-            padding: [2, 4, 2, 4],
+            scale: getIconScale(currentZoom, selectedJourney?.id === journey.id ? 1.1 : 0.9),
           }),
         })
       );
@@ -419,7 +507,7 @@ export default function Map({
                     <span
                       key={i}
                       className={`text-sm ${
-                        i < selectedJourney.rating
+                        i < Math.round(selectedJourney.averageRating || selectedJourney.rating)
                           ? "text-yellow-400"
                           : "text-gray-300"
                       }`}
@@ -429,7 +517,7 @@ export default function Map({
                   ))}
                 </div>
                 <span className="text-sm text-gray-600">
-                  {selectedJourney.rating}/5
+                  {Number(selectedJourney.averageRating || selectedJourney.rating).toFixed(1)}/5
                 </span>
               </div>
             </div>

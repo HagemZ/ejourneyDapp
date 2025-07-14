@@ -13,6 +13,8 @@ import JourneyModal from "@/components/JourneyModal";
 import JourneyCard from "@/components/JourneyCard";
 import JourneyDetailsModal from "@/components/JourneyDetailsModal";
 import LocationConfirmationPopup from "@/components/LocationConfirmationPopup";
+import MainSidebar from "@/components/MainSidebar";
+import RecentJourneys from "@/components/RecentJourneys";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 
@@ -32,6 +34,7 @@ export default function DisplayMap() {
     const [selectedLocation, setSelectedLocation] = useState<LocationSuggestion | undefined>(undefined);
     const [initialLocationSet, setInitialLocationSet] = useState(false);
     const [centerMapRequested, setCenterMapRequested] = useState(false);
+    const [journeyZoomRequested, setJourneyZoomRequested] = useState<[number, number] | null>(null);
     const [showAccuracyStatus, setShowAccuracyStatus] = useState(true);
     const [accuracyStatusVisible, setAccuracyStatusVisible] = useState(true);
     const [journeysLoading, setJourneysLoading] = useState(true);
@@ -39,9 +42,14 @@ export default function DisplayMap() {
     // Modal states  
     const [isJourneyModalOpen, setIsJourneyModalOpen] = useState(false);
     const [isJourneyDetailsModalOpen, setIsJourneyDetailsModalOpen] = useState(false);
-    const [isSidebarJourneyOpen, setIsSidebarJourneyOpen] = useState(false);
     const [isLocationConfirmationOpen, setIsLocationConfirmationOpen] = useState(false);
     const [pendingLocationCoordinates, setPendingLocationCoordinates] = useState<[number, number] | null>(null);
+
+    // Main sidebar state
+    const [isMainSidebarOpen, setIsMainSidebarOpen] = useState(false);
+    
+    // Recent journeys sidebar state
+    const [isRecentJourneysOpen, setIsRecentJourneysOpen] = useState(false);
 
     // Map state
     const [mapViewState, setMapViewState] = useState<MapViewState>({
@@ -123,6 +131,18 @@ export default function DisplayMap() {
             }
         }
     }, [coordinates, users, initialLocationSet, centerMapRequested]);
+
+    // Handle journey zoom requests separately from GPS centering
+    useEffect(() => {
+        if (journeyZoomRequested) {
+            console.log('Zooming to journey location:', journeyZoomRequested);
+            setMapViewState({
+                center: journeyZoomRequested,
+                zoom: 15,
+            });
+            setJourneyZoomRequested(null); // Reset the zoom request
+        }
+    }, [journeyZoomRequested]);
 
     // Reset initial location flag when user logs out
     useEffect(() => {
@@ -208,7 +228,13 @@ export default function DisplayMap() {
         // Reload journeys from database to include the newly created journey
         await loadJourneys();
         
-        console.log("Journey created and journeys reloaded from database");
+        // Reset all modal and location states after journey creation
+        setIsLocationConfirmationOpen(false);
+        setPendingLocationCoordinates(null);
+        setSelectedLocation(undefined);
+        setVerificationLocation(null);
+        
+        console.log("Journey created, journeys reloaded, and all modal states reset");
     };
 
     const handleJourneySelect = (journey: Journey | null) => {
@@ -443,104 +469,6 @@ export default function DisplayMap() {
                                 </svg>
                             </button>
                         </div>
-
-                        {/* Journey Cards Sidebar */}
-                        <div
-                            className="text-black hider flex px-1  fixed w-[55px] h-[40px] top-[200px] -right-5 bg-green-600 shadow-lg cursor-pointer rounded-full"
-                            onClick={() => setIsSidebarJourneyOpen((prev) => !prev)}
-                        >
-                            <svg
-                                width={50}
-                                clipRule="evenodd"
-                                fillRule="evenodd"
-                                strokeLinejoin="round"
-                                strokeMiterlimit="2"
-                                viewBox="0 0 22 22"
-                                xmlns="http://www.w3.org/2000/svg"
-                            >
-                                <path
-                                    d="m21 15.75c0-.414-.336-.75-.75-.75h-16.5c-.414 0-.75.336-.75.75s.336.75.75.75h16.5c.414 0 .75-.336.75-.75zm0-4c0-.414-.336-.75-.75-.75h-16.5c-.414 0-.75.336-.75.75s.336.75.75.75h16.5c.414 0 .75-.336.75-.75zm0-4c0-.414-.336-.75-.75-.75h-16.5c-.414 0-.75.336-.75.75s.336.75.75.75h16.5c.414 0 .75-.336.75-.75z"
-                                    fillRule="nonzero"
-                                />
-                            </svg>
-                        </div>
-                        {isSidebarJourneyOpen && (
-                            <div className=" journey-sidebar w-80 bg-blue-300 border-l border-gray-200 overflow-y-auto relative z-20 transition duration-100">
-                                <div className="bg-white sticky left-0 right-0 top-0 bg-whte z-80 p-4 border-b border-gray-200 flex justify-between">
-                                    <div
-                                        className="close text-black w-7 h-7 cursor-pointer flex justify-center items-center font-bold rounded-full shadow "
-                                        onClick={() => setIsSidebarJourneyOpen((prev) => !prev)}
-                                    >
-                                        x
-                                    </div>
-                                    <div className="title">
-                                        <h2 className="text-lg font-heading font-semibold text-gray-900">
-                                            Recent Journeys
-                                        </h2>
-                                        <p className="text-sm font-body text-gray-600 mt-1">
-                                            {journeysLoading ? 'Loading...' : 
-                                             `${journeys.length} adventure${journeys.length !== 1 ? "s" : ""} shared`}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 space-y-4">
-                                    {journeysLoading ? (
-                                        // Loading state
-                                        <div className="text-center py-8">
-                                            <div className="w-8 h-8 border-4 border-blue-300 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                                            <p className="text-sm text-gray-600">Loading journeys...</p>
-                                        </div>
-                                    ) : journeys.length > 0 ? (
-                                        // Show journeys
-                                        journeys.map((journey) => {
-                                            const author = getAuthor(journey);
-                                            console.log(`Author for journey "${journey.title}":`, author);
-                                            return (
-                                                <JourneyCard
-                                                    key={journey.id}
-                                                    journey={journey}
-                                                    author={author}
-                                                    onClick={() => handleJourneyCardClick(journey)}
-                                                />
-                                            );
-                                        })
-                                    ) : (
-                                        // Empty state
-                                        <div className="text-center py-8">
-                                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                <svg
-                                                    className="w-8 h-8 text-gray-400"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={2}
-                                                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                                                    />
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={2}
-                                                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                                                    />
-                                                </svg>
-                                            </div>
-                                            <h3 className="font-heading font-medium text-gray-900 mb-2">
-                                                No journeys yet
-                                            </h3>
-                                            <p className="text-sm font-body text-gray-600">
-                                                Click on the map or search for a location to share
-                                                your first journey!
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
                     </>
                 ) : (
                     <div className="flex-1 flex items-center justify-center">
@@ -599,10 +527,34 @@ export default function DisplayMap() {
                 setIsJourneyDetailsModalOpen(false);
                 setSelectedJourney(null);
               }}
+              onJourneyUpdated={loadJourneys} // Reload journeys when updated
             />
           </>
         )}
 
+        {/* Main Navigation Sidebar */}
+        <MainSidebar 
+          isOpen={isMainSidebarOpen}
+          onToggle={() => setIsMainSidebarOpen(!isMainSidebarOpen)}
+          onRecentJourneysToggle={() => setIsRecentJourneysOpen(true)}
+        />
+
+        {/* Recent Journeys Sidebar */}
+        <RecentJourneys
+          isOpen={isRecentJourneysOpen}
+          onClose={() => setIsRecentJourneysOpen(false)}
+          journeys={journeys}
+          onJourneyClick={(journey) => {
+            setSelectedJourney(journey);
+            setIsJourneyDetailsModalOpen(true);
+          }}
+          onZoomToLocation={(journey) => {
+            if (journey.location) {
+              console.log('Journey zoom requested for:', journey.title, journey.location.coordinates);
+              setJourneyZoomRequested([journey.location.coordinates[0], journey.location.coordinates[1]]);
+            }
+          }}
+        />
 
         </div>
     );

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { MapPin, Star, User, Calendar, Shield } from "lucide-react";
+import { MapPin, Star, User, Calendar, Shield, Navigation } from "lucide-react";
 import { Journey, User as UserType } from "../types";
 import { format } from "date-fns";
 
@@ -9,18 +9,21 @@ interface JourneyCardProps {
   journey: Journey;
   author: UserType;
   onClick: () => void;
+  onZoomToLocation?: () => void; // New prop for zoom functionality
 }
 
 export default function JourneyCard({
   journey,
   author,
   onClick,
+  onZoomToLocation,
 }: JourneyCardProps) {
-  // Debug: Log journey data
+  // Debug: Log journey data and props
   console.log(`JourneyCard for "${journey.title}":`, {
     hasImages: journey.images.length > 0,
     imageCount: journey.images.length,
-    images: journey.images
+    images: journey.images,
+    hasZoomFunction: !!onZoomToLocation // Debug the zoom prop
   });
 
   return (
@@ -53,14 +56,31 @@ export default function JourneyCard({
       <div className="p-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
-          <h3 className="text-lg font-heading font-semibold text-gray-900 line-clamp-2">
+          <h3 className="text-lg font-heading font-semibold text-gray-900 line-clamp-2 flex-1 pr-2">
             {journey.title}
           </h3>
-          <div className="flex items-center space-x-1 ml-2">
-            <Star className="w-4 h-4 text-yellow-400 fill-current" />
-            <span className="text-sm font-body font-medium text-gray-700">
-              {journey.rating}
-            </span>
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            {/* Zoom to Location Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent card click
+                console.log('Zoom button clicked!', onZoomToLocation);
+                if (onZoomToLocation) {
+                  onZoomToLocation();
+                }
+              }}
+              className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors duration-200 border border-blue-300"
+              title="Zoom to location on map"
+            >
+              <Navigation className="w-4 h-4" />
+            </button>
+            {/* Rating */}
+            <div className="flex items-center space-x-1">
+              <Star className="w-4 h-4 text-yellow-400 fill-current" />
+              <span className="text-sm font-body font-medium text-gray-700">
+                {Number(journey.averageRating || journey.rating).toFixed(1)}
+              </span>
+            </div>
           </div>
         </div>
 

@@ -109,7 +109,7 @@ export async function getAITravelTrends(): Promise<{
 export function summarizeLocationReviews(journeys: Journey[]): string {
   if (journeys.length === 0) return 'No reviews available for this location.';
 
-  const totalRating = journeys.reduce((sum, journey) => sum + journey.rating, 0);
+  const totalRating = journeys.reduce((sum, journey) => sum + (journey.averageRating || journey.rating), 0);
   const avgRating = (totalRating / journeys.length).toFixed(1);
   
   const commonTags = journeys
@@ -140,10 +140,9 @@ export function generateInsights(journeys: Journey[]): {
   averageRating: number;
   totalReviews: number;
   topTags: string[];
-  bestTime: string;
 } {
   const totalReviews = journeys.length;
-  const averageRating = journeys.reduce((sum, j) => sum + j.rating, 0) / totalReviews;
+  const averageRating = journeys.reduce((sum, j) => sum + (j.averageRating || j.rating), 0) / totalReviews;
   
   const tagCounts = journeys
     .flatMap(j => j.tags)
@@ -157,13 +156,9 @@ export function generateInsights(journeys: Journey[]): {
     .slice(0, 5)
     .map(([tag]) => tag);
 
-  // Mock best time based on creation dates
-  const bestTime = 'Spring to Fall';
-
   return {
     averageRating,
     totalReviews,
-    topTags,
-    bestTime
+    topTags
   };
 }
