@@ -123,6 +123,16 @@ export async function fetchJourneys(params: FetchJourneysRequest = {}): Promise<
       cache: 'no-store', // Always fetch fresh data
     });
 
+    // Check if response is HTML (server error page) instead of JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Server returned non-JSON response:', response.status, response.statusText);
+      return {
+        success: false,
+        error: `Server error: ${response.status} ${response.statusText}. Backend server may not be running.`,
+      };
+    }
+
     const result = await response.json();
 
     console.log('Raw API response:', result);
@@ -153,6 +163,15 @@ export async function fetchJourneys(params: FetchJourneysRequest = {}): Promise<
     };
   } catch (error) {
     console.error('Error fetching journeys:', error);
+    
+    // Check if it's a JSON parsing error (likely HTML response)
+    if (error instanceof SyntaxError && error.message.includes('Unexpected token')) {
+      return {
+        success: false,
+        error: 'Backend server is not responding correctly. Please check if the server is running.',
+      };
+    }
+    
     return {
       success: false,
       error: 'Network error occurred while fetching journeys',

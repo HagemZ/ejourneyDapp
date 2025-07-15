@@ -35,6 +35,10 @@ export interface Journey {
   totalVotes: number;
   averageRating: number;
   reviewCount: number;
+  // Journey status and scheduling
+  shareType: 'live' | 'draft' | 'scheduled';
+  scheduledAt?: Date | null;
+  status: 'active' | 'inactive' | 'scheduled';
 }
 
 export interface LocationSuggestion {

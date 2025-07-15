@@ -302,8 +302,8 @@ export default function Map({
                         stroke="#1976D2" 
                         stroke-width="1.5"
                         filter="url(#glow${journey.id})"/>
-                  <circle cx="16" cy="16" r="8" fill="rgba(255,255,255,0.95)" stroke="#1976D2" stroke-width="1"/>
-                  <text x="16" y="20" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="bold" fill="#1976D2">
+                  <circle cx="16" cy="16" r="11" fill="rgba(255,255,0,0.95)" stroke="#1976D2" stroke-width="1"/>
+                  <text x="16" y="20" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="bold" fill="#000000">
                     ${Number(journey.averageRating || journey.rating).toFixed(1)}
                   </text>
                 </g>

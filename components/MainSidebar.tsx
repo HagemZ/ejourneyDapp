@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { 
   Menu, 
   X, 
@@ -17,11 +18,11 @@ import {
   Settings,
   History
 } from "lucide-react";
-import MyJourneyModal from "@/components/modals/MyJourneyModal";
 import MissionModal from "@/components/modals/MissionModal";
 import RewardModal from "@/components/modals/RewardModal";
 import HowToModal from "@/components/modals/HowToModal";
 import CommunityModal from "@/components/modals/CommunityModal";
+import { getUserJourneyCounts, getCurrentUserId, type JourneyCounts } from "@/services/journeyService";
 
 interface MainSidebarProps {
   isOpen: boolean;
@@ -40,19 +41,48 @@ interface MenuItem {
     label: string;
     icon: React.ReactNode;
     count?: number;
+    status?: 'draft' | 'scheduled' | 'live';
   }[];
 }
 
 export default function MainSidebar({ isOpen, onToggle, className = "", onRecentJourneysToggle }: MainSidebarProps) {
+  const router = useRouter();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['my-journey']);
   const [activeMenu, setActiveMenu] = useState<string>('');
+  const [journeyCounts, setJourneyCounts] = useState<JourneyCounts>({
+    live: 0,
+    draft: 0,
+    scheduled: 0,
+    total: 0
+  });
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
   
-  // Modal states
-  const [isMyJourneyModalOpen, setIsMyJourneyModalOpen] = useState(false);
+  // Modal states - only for non-journey items
   const [isMissionModalOpen, setIsMissionModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const [isHowToModalOpen, setIsHowToModalOpen] = useState(false);
   const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
+
+  // Load journey counts on component mount
+  useEffect(() => {
+    const loadJourneyCounts = async () => {
+      try {
+        setIsLoadingCounts(true);
+        const userId = getCurrentUserId();
+        const response = await getUserJourneyCounts(userId);
+        if (response.success) {
+          setJourneyCounts(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to load journey counts:', error);
+        // Keep default counts on error
+      } finally {
+        setIsLoadingCounts(false);
+      }
+    };
+
+    loadJourneyCounts();
+  }, []);
 
   const menuItems: MenuItem[] = [
     {
@@ -61,22 +91,32 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
       icon: <MapPin className="w-5 h-5" />,
       submenu: [
         {
+          id: 'all-journeys',
+          label: 'All Journeys',
+          icon: <MapPin className="w-4 h-4" />,
+          count: journeyCounts?.total || 0,
+          status: 'all' as any
+        },
+        {
           id: 'draft',
           label: 'Draft',
           icon: <FileText className="w-4 h-4" />,
-          count: 3
+          count: journeyCounts?.draft || 0,
+          status: 'draft'
         },
         {
           id: 'scheduled',
           label: 'Scheduled',
           icon: <Calendar className="w-4 h-4" />,
-          count: 2
+          count: journeyCounts?.scheduled || 0,
+          status: 'scheduled'
         },
         {
           id: 'live',
           label: 'Live',
           icon: <Radio className="w-4 h-4" />,
-          count: 1
+          count: journeyCounts?.live || 0,
+          status: 'live'
         }
       ]
     },
@@ -118,8 +158,24 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
 
   const handleMenuClick = (item: MenuItem) => {
     if (item.submenu) {
+      // Special handling for "My Journey" - both toggle submenu AND navigate to overview
+      if (item.id === 'my-journey') {
+        // Navigate to general journeys overview
+        router.push('/dashboard/journeys');
+        setActiveMenu('my-journey');
+        
+        // Also toggle submenu for better UX
+        toggleSubmenu(item.id);
+        
+        // On mobile, close sidebar after selection
+        if (window.innerWidth < 768) {
+          onToggle();
+        }
+        return;
+      }
+      
+      // For other items with submenu, just toggle
       toggleSubmenu(item.id);
-      // Set active menu when toggling submenu
       setActiveMenu(expandedMenus.includes(item.id) ? '' : item.id);
     } else {
       // Set active menu for non-submenu items
@@ -156,19 +212,23 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
   };
 
   const handleSubmenuClick = (submenuItem: NonNullable<MenuItem['submenu']>[0]) => {
-    // For submenu items, open the My Journey modal
-    setIsMyJourneyModalOpen(true);
-    
-    // On mobile, close sidebar after selection
-    if (window.innerWidth < 768) {
-      onToggle();
+    // Navigate to dedicated pages for journey status instead of using modals
+    if (submenuItem.status) {
+      switch (submenuItem.status) {
+        case 'all' as any:
+          router.push('/dashboard/journeys');
+          break;
+        case 'draft':
+          router.push('/dashboard/journeys/draft');
+          break;
+        case 'scheduled':
+          router.push('/dashboard/journeys/scheduled');
+          break;
+        case 'live':
+          router.push('/dashboard/journeys/live');
+          break;
+      }
     }
-  };
-
-  // Handle My Journey main item click
-  const handleMyJourneyClick = () => {
-    setActiveMenu('my-journey');
-    setIsMyJourneyModalOpen(true);
     
     // On mobile, close sidebar after selection
     if (window.innerWidth < 768) {
@@ -251,13 +311,13 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
                   
                   <div className="flex items-center space-x-2">
                     {/* Count Badge */}
-                    {item.count && (
+                    {item.count !== undefined && (
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                         (expandedMenus.includes(item.id) && item.submenu) || activeMenu === item.id
                           ? 'bg-blue-200 text-blue-800'
                           : 'bg-gray-200 text-gray-700'
                       }`}>
-                        {item.count}
+                        {isLoadingCounts ? '...' : item.count}
                       </span>
                     )}
                     
@@ -292,9 +352,9 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
                           <span className="font-body">{subItem.label}</span>
                         </div>
                         
-                        {subItem.count && (
+                        {subItem.count !== undefined && (
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-800 transition-all duration-200">
-                            {subItem.count}
+                            {isLoadingCounts ? '...' : subItem.count}
                           </span>
                         )}
                       </button>
@@ -319,11 +379,7 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
         </div>
       </div>
 
-      {/* Modals */}
-      <MyJourneyModal 
-        isOpen={isMyJourneyModalOpen} 
-        onClose={() => setIsMyJourneyModalOpen(false)} 
-      />
+      {/* Modals - only for non-journey items */}
       <MissionModal 
         isOpen={isMissionModalOpen} 
         onClose={() => setIsMissionModalOpen(false)} 
