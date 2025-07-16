@@ -33,7 +33,8 @@ export interface Journey {
   authorEmail?: string; // Author's email from backend
   // New fields for unique location system
   totalVotes: number;
-  averageRating: number;
+  voteScore: number; // Net score: upvotes - downvotes
+  averageRating: number; // Legacy field, kept for backward compatibility
   reviewCount: number;
   // Journey status and scheduling
   shareType: 'live' | 'draft' | 'scheduled';

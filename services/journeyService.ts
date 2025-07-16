@@ -98,11 +98,27 @@ export async function getAdminJourneyCountsSummary(): Promise<AdminJourneyCounts
   }
 }
 
-// Helper function to get mock user ID (replace with actual auth)
+// Helper function to get current user ID
 export function getCurrentUserId(): string {
-  // This should be replaced with actual authentication logic
-  // For now, returning a mock user ID
+  // This function should be used carefully - prefer passing userId explicitly
+  // when possible rather than using this hardcoded fallback
+  console.warn('getCurrentUserId() called - consider using wallet address or user data directly');
   return '1a2cc4fe-ca35-4eb0';
+}
+
+// Helper function to get user ID from wallet address or user data
+export async function getUserIdFromAddress(walletAddress: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${walletAddress}`);
+    if (response.ok) {
+      const data = await response.json();
+      return data.data?.id || walletAddress; // Return registered ID or fallback to address
+    }
+    return walletAddress; // Fallback to wallet address if user not found
+  } catch (error) {
+    console.error('Error fetching user ID from address:', error);
+    return walletAddress; // Fallback to wallet address on error
+  }
 }
 
 // Helper function to format journey count display

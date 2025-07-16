@@ -22,7 +22,7 @@ export default function LiveJourneyViewPage() {
 
   const fetchJourney = async () => {
     try {
-      const response = await fetch(`http://localhost:3033/api/journeys/${journeyId}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${journeyId}`);
       if (response.ok) {
         const data = await response.json();
         setJourney(data.journey);
@@ -34,7 +34,7 @@ export default function LiveJourneyViewPage() {
 
   const fetchReviews = async () => {
     try {
-      const response = await fetch(`http://localhost:3033/api/journeys/${journeyId}/reviews`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${journeyId}/reviews`);
       if (response.ok) {
         const data = await response.json();
         setReviews(data.reviews || []);
@@ -198,7 +198,7 @@ export default function LiveJourneyViewPage() {
                     {journey.images.map((image, index) => (
                       <div key={index} className="aspect-square bg-gray-200 rounded-lg overflow-hidden">
                         <img
-                          src={`http://localhost:3033/${image}`}
+                          src={`${process.env.NEXT_PUBLIC_BACKEND_URL}/${image}`}
                           alt={`Journey photo ${index + 1}`}
                           className="w-full h-full object-cover"
                         />

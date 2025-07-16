@@ -4,13 +4,15 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { Calendar, Clock, MapPin, Edit, Eye, AlertCircle, FileText, Radio, Plus, ArrowLeft, Shield, User } from "lucide-react";
-import { getUserJourneysByType, getCurrentUserId, type JourneyCounts } from "@/services/journeyService";
+import { getUserJourneysByType, type JourneyCounts } from "@/services/journeyService";
 import { Journey } from "../../../types";
 import ConnectButtonCustom from "@/components/ConnectButtonCustom";
+import useGetUserData from "@/hooks/useAddress";
 
 export default function JourneysOverviewPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { users: userData } = useGetUserData();
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'draft' | 'scheduled' | 'live'>('all');
@@ -65,16 +67,32 @@ export default function JourneysOverviewPage() {
   }
 
   useEffect(() => {
-    fetchJourneys();
-    // Fetch stats separately on first load only
-    if (stats.total === 0) {
-      fetchStats();
+    // Only fetch when wallet is connected and we have user data (or address fallback)
+    if (isConnected && address) {
+      fetchJourneys();
+      // Fetch stats separately on first load only
+      if (stats.total === 0) {
+        fetchStats();
+      }
     }
-  }, [activeTab]);
+  }, [activeTab, isConnected, address, userData?.id]); // Add userData dependency
 
   const fetchStats = async () => {
     try {
-      const userId = getCurrentUserId();
+      // Use the user's registered ID if available, otherwise use wallet address
+      let userId = address; // Default to wallet address
+      
+      if (userData?.id) {
+        // If user is registered, use their registered user ID
+        userId = userData.id;
+      }
+      
+      if (!userId) {
+        console.log('No userId available for stats');
+        return;
+      }
+      
+      console.log('Fetching stats for userId:', userId);
       // Fetch ALL journeys to calculate correct stats
       const response = await getUserJourneysByType(userId, undefined, 50, 0);
       
@@ -87,6 +105,7 @@ export default function JourneysOverviewPage() {
           live: allJourneys.filter(j => j.shareType === 'live').length
         };
         setStats(counts);
+        console.log('Stats updated:', counts);
       }
     } catch (error) {
       console.error("Error fetching stats:", error);
@@ -96,8 +115,22 @@ export default function JourneysOverviewPage() {
   const fetchJourneys = async () => {
     try {
       setLoading(true);
-      const userId = getCurrentUserId();
       
+      // Use the user's registered ID if available, otherwise use wallet address
+      let userId = address; // Default to wallet address
+      
+      if (userData?.id) {
+        // If user is registered, use their registered user ID
+        userId = userData.id;
+      }
+      
+      if (!userId) {
+        console.log('No userId available for fetching journeys');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Fetching journeys for userId:', userId);
       const shareType = activeTab === 'all' ? undefined : activeTab;
       const response = await getUserJourneysByType(userId, shareType, 50, 0);
       
@@ -205,7 +238,8 @@ export default function JourneysOverviewPage() {
     );
   }
 
-  const currentUserId = getCurrentUserId();
+  // Get current user ID for display
+  const currentUserId = userData?.id || address || 'Unknown User';
 
   return (
     <div className="min-h-screen bg-gray-50">

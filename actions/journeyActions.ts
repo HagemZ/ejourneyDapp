@@ -305,7 +305,10 @@ export async function fetchReviews(params: FetchReviewsRequest): Promise<FetchRe
     if (params.limit) searchParams.append('limit', params.limit.toString());
     if (params.offset) searchParams.append('offset', params.offset.toString());
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${params.journeyId}/reviews?${searchParams.toString()}`, {
+    const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${params.journeyId}/reviews?${searchParams.toString()}`;
+    console.log('Fetching reviews from URL:', url);
+
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -313,7 +316,9 @@ export async function fetchReviews(params: FetchReviewsRequest): Promise<FetchRe
       cache: 'no-store',
     });
 
+    console.log('Reviews response status:', response.status);
     const result = await response.json();
+    console.log('Reviews response data:', result);
 
     if (!response.ok) {
       return {

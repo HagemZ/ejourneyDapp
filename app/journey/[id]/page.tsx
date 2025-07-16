@@ -42,7 +42,7 @@ export default function JourneyViewPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`http://localhost:3033/api/journeys/${journeyId}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${journeyId}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -365,7 +365,7 @@ export default function JourneyViewPage() {
                       .map((image, index) => (
                       <div key={index} className="relative">
                         <img
-                          src={image.startsWith('http') ? image : `http://localhost:3033${image}`}
+                          src={image.startsWith('http') ? image : `${process.env.NEXT_PUBLIC_BACKEND_URL}${image}`}
                           alt={`Journey image ${index + 1}`}
                           className="w-full h-64 sm:h-80 lg:h-96 object-cover rounded-lg"
                         />

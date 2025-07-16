@@ -4,15 +4,86 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { FileText, Plus, Edit, Trash2, MapPin, Clock, Save, ArrowLeft, Shield, User } from "lucide-react";
-import { getUserJourneysByType, getCurrentUserId } from "@/services/journeyService";
-import { Journey } from "../../../../types";
+import { getUserJourneysByType } from "@/services/journeyService";
+import useGetUserData from "@/hooks/useAddress";
+import { Journey } from "@/types";
+import { format } from "date-fns";
 import ConnectButtonCustom from "@/components/ConnectButtonCustom";
 
 export default function DraftJourneysPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const [drafts, setDrafts] = useState<Journey[]>([]);
+  const { users: userData } = useGetUserData();
+  const [journeys, setJourneys] = useState<Journey[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchDrafts = async () => {
+    try {
+      setLoading(true);
+      
+      // Use the user's registered ID if available, otherwise use wallet address
+      let userId = address; // Default to wallet address
+      
+      if (userData?.id) {
+        // If user is registered, use their registered user ID
+        userId = userData.id;
+      }
+      
+      if (!userId) {
+        console.log('No userId available for fetching drafts');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Fetching drafts for userId:', userId);
+      const response = await getUserJourneysByType(userId, 'draft', 50, 0);
+      
+      if (response.success) {
+        const formattedJourneys = response.data.map(journey => ({
+          id: journey.id,
+          userId: journey.userId,
+          title: journey.title,
+          description: journey.description,
+          location: {
+            name: journey.locationName || '',
+            coordinates: [
+              parseFloat(journey.locationLng || '0'),
+              parseFloat(journey.locationLat || '0')
+            ] as [number, number],
+            country: journey.locationName?.split(',').pop()?.trim() || '',
+            city: journey.locationName?.split(',')[0]?.trim() || ''
+          },
+          images: Array.isArray(journey.images) ? journey.images : (journey.images ? [journey.images] : []),
+          rating: Number(journey.rating),
+          tags: Array.isArray(journey.tags) ? journey.tags : (journey.tags ? [journey.tags] : []),
+          createdAt: new Date(journey.createdAt),
+          updatedAt: new Date(journey.updatedAt),
+          verifiedLocation: Boolean(journey.verifiedLocation),
+          totalVotes: Number(journey.totalVotes || 0),
+          averageRating: Number(journey.averageRating || 0),
+          reviewCount: Number(journey.reviewCount || 0),
+          shareType: journey.shareType,
+          scheduledAt: journey.scheduledAt ? new Date(journey.scheduledAt) : null,
+          status: journey.status
+        }));
+        
+        setJourneys(formattedJourneys);
+      } else {
+        console.error('Failed to fetch draft journeys:', response.error);
+      }
+    } catch (error) {
+      console.error('Error fetching draft journeys:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Only fetch when wallet is connected and we have user data (or address fallback)
+    if (isConnected && address) {
+      fetchDrafts();
+    }
+  }, [isConnected, address, userData?.id]); // Add dependencies
 
   // If wallet not connected, show connection prompt instead of redirecting
   if (!isConnected || !address) {
@@ -57,54 +128,6 @@ export default function DraftJourneysPage() {
     );
   }
 
-  useEffect(() => {
-    fetchDrafts();
-  }, []);
-
-  const fetchDrafts = async () => {
-    try {
-      setLoading(true);
-      const userId = getCurrentUserId();
-      const response = await getUserJourneysByType(userId, 'draft', 50, 0);
-      
-      if (response.success) {
-        const formattedJourneys = response.data.map(journey => ({
-          id: journey.id,
-          userId: journey.userId,
-          title: journey.title,
-          description: journey.description,
-          location: {
-            name: journey.locationName || '',
-            coordinates: [
-              parseFloat(journey.locationLng || '0'),
-              parseFloat(journey.locationLat || '0')
-            ] as [number, number],
-            country: journey.locationName?.split(',').pop()?.trim() || '',
-            city: journey.locationName?.split(',')[0]?.trim() || ''
-          },
-          images: Array.isArray(journey.images) ? journey.images : (journey.images ? [journey.images] : []),
-          rating: Number(journey.rating),
-          tags: Array.isArray(journey.tags) ? journey.tags : (journey.tags ? [journey.tags] : []),
-          createdAt: new Date(journey.createdAt),
-          updatedAt: new Date(journey.updatedAt),
-          verifiedLocation: Boolean(journey.verifiedLocation),
-          totalVotes: Number(journey.totalVotes || 0),
-          averageRating: Number(journey.averageRating || 0),
-          reviewCount: Number(journey.reviewCount || 0),
-          shareType: journey.shareType,
-          scheduledAt: journey.scheduledAt ? new Date(journey.scheduledAt) : null,
-          status: journey.status
-        }));
-        
-        setDrafts(formattedJourneys);
-      }
-    } catch (error) {
-      console.error("Error fetching drafts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleEdit = (journeyId: string) => {
     router.push(`/dashboard/journeys/draft/${journeyId}/edit`);
   };
@@ -143,7 +166,8 @@ export default function DraftJourneysPage() {
     );
   }
 
-  const currentUserId = getCurrentUserId();
+  // Get current user ID for display
+  const currentUserId = userData?.id || address || 'Unknown User';
 
   return (
     <div className="min-h-screen bg-gray-50">

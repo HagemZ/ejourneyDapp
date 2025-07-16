@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { MapPin, Star, User, Calendar, Shield, Navigation } from "lucide-react";
+import { MapPin, Star, User, Calendar, Shield, Navigation, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Journey, User as UserType } from "../types";
 import { format } from "date-fns";
 

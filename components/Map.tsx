@@ -502,23 +502,16 @@ export default function Map({
                 {selectedJourney.location.name}
               </p>
               <div className="flex items-center space-x-2">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <span
-                      key={i}
-                      className={`text-sm ${
-                        i < Math.round(selectedJourney.averageRating || selectedJourney.rating)
-                          ? "text-yellow-400"
-                          : "text-gray-300"
-                      }`}
-                    >
-                      ★
-                    </span>
-                  ))}
+                <div className="flex items-center space-x-1">
+                  {(selectedJourney.voteScore || 0) >= 0 ? (
+                    <span className="text-green-500">👍</span>
+                  ) : (
+                    <span className="text-red-500">👎</span>
+                  )}
+                  <span className="text-sm text-gray-600">
+                    Score: {selectedJourney.voteScore || 0}
+                  </span>
                 </div>
-                <span className="text-sm text-gray-600">
-                  {Number(selectedJourney.averageRating || selectedJourney.rating).toFixed(1)}/5
-                </span>
               </div>
             </div>
           )}

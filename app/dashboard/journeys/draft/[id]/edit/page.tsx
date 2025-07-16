@@ -85,7 +85,7 @@ export default function EditDraftPage() {
     try {
       setLoading(true);
       // console.log('Fetching journey:', journeyId); // Debug log
-      const response = await fetch(`http://localhost:3033/api/journeys/${journeyId}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${journeyId}`);
       if (response.ok) {
         const data = await response.json();
         const journeyData = data.journey;
@@ -210,7 +210,7 @@ export default function EditDraftPage() {
         scheduledAt: formData.scheduledAt ? new Date(formData.scheduledAt).toISOString() : null
       };
 
-      const response = await fetch(`http://localhost:3033/api/journeys/${journeyId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${journeyId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -247,7 +247,7 @@ export default function EditDraftPage() {
         images: allImages
       };
 
-      const response = await fetch(`http://localhost:3033/api/journeys/${journeyId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${journeyId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -289,7 +289,7 @@ export default function EditDraftPage() {
         images: allImages
       };
 
-      const response = await fetch(`http://localhost:3033/api/journeys/${journeyId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/journeys/${journeyId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -480,7 +480,7 @@ export default function EditDraftPage() {
                       {existingImages.map((image, index) => (
                         <div key={index} className="relative group">
                           <img
-                            src={image.startsWith('http') ? image : `http://localhost:3033${image}`}
+                            src={image.startsWith('http') ? image : `${process.env.NEXT_PUBLIC_BACKEND_URL}${image}`}
                             alt={`Journey image ${index + 1}`}
                             className="w-full h-20 sm:h-24 object-cover rounded-lg border border-gray-200"
                           />

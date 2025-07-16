@@ -4,13 +4,15 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { Calendar, Plus, Edit, Trash2, MapPin, Clock, Eye, AlertCircle, ArrowLeft, Shield, User } from "lucide-react";
-import { getUserJourneysByType, getCurrentUserId } from "@/services/journeyService";
+import { getUserJourneysByType } from "@/services/journeyService";
 import { Journey } from "../../../../types";
 import ConnectButtonCustom from "@/components/ConnectButtonCustom";
+import useGetUserData from "@/hooks/useAddress";
 
 export default function ScheduledJourneysPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { users: userData } = useGetUserData();
   const [scheduledJourneys, setScheduledJourneys] = useState<Journey[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,13 +60,31 @@ export default function ScheduledJourneysPage() {
   }
 
   useEffect(() => {
-    fetchScheduledJourneys();
-  }, []);
+    // Only fetch when wallet is connected and we have user data (or address fallback)
+    if (isConnected && address) {
+      fetchScheduledJourneys();
+    }
+  }, [isConnected, address, userData?.id]); // Add dependencies
 
   const fetchScheduledJourneys = async () => {
     try {
       setLoading(true);
-      const userId = getCurrentUserId();
+      
+      // Use the user's registered ID if available, otherwise use wallet address
+      let userId = address; // Default to wallet address
+      
+      if (userData?.id) {
+        // If user is registered, use their registered user ID
+        userId = userData.id;
+      }
+      
+      if (!userId) {
+        console.log('No userId available for fetching scheduled journeys');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Fetching scheduled journeys for userId:', userId);
       const response = await getUserJourneysByType(userId, 'scheduled', 50, 0);
       
       if (response.success) {
@@ -168,7 +188,8 @@ export default function ScheduledJourneysPage() {
     );
   }
 
-  const currentUserId = getCurrentUserId();
+  // Get current user ID for display
+  const currentUserId = userData?.id || address || 'Unknown User';
 
   return (
     <div className="min-h-screen bg-gray-50">

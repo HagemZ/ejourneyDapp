@@ -1,7 +1,6 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
 import { 
   Menu, 
   X, 
@@ -22,7 +21,8 @@ import MissionModal from "@/components/modals/MissionModal";
 import RewardModal from "@/components/modals/RewardModal";
 import HowToModal from "@/components/modals/HowToModal";
 import CommunityModal from "@/components/modals/CommunityModal";
-import { getUserJourneyCounts, getCurrentUserId, type JourneyCounts } from "@/services/journeyService";
+import useGetUserData from "@/hooks/useAddress";
+import { getUserJourneyCounts, type JourneyCounts } from "@/services/journeyService";
 
 interface MainSidebarProps {
   isOpen: boolean;
@@ -47,6 +47,8 @@ interface MenuItem {
 
 export default function MainSidebar({ isOpen, onToggle, className = "", onRecentJourneysToggle }: MainSidebarProps) {
   const router = useRouter();
+  const { address, isConnected } = useAccount();
+  const { users: userData } = useGetUserData();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['my-journey']);
   const [activeMenu, setActiveMenu] = useState<string>('');
   const [journeyCounts, setJourneyCounts] = useState<JourneyCounts>({
@@ -63,15 +65,34 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
   const [isHowToModalOpen, setIsHowToModalOpen] = useState(false);
   const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
 
-  // Load journey counts on component mount
+  // Load journey counts on component mount and when user data changes
   useEffect(() => {
     const loadJourneyCounts = async () => {
       try {
         setIsLoadingCounts(true);
-        const userId = getCurrentUserId();
+        
+        // Use the user's registered ID if available, otherwise use wallet address
+        let userId = address; // Default to wallet address
+        
+        if (userData?.id) {
+          // If user is registered, use their registered user ID
+          userId = userData.id;
+        }
+        
+        if (!userId) {
+          console.log('No userId available for journey counts');
+          setIsLoadingCounts(false);
+          return;
+        }
+        
+        console.log('Loading journey counts for userId:', userId);
         const response = await getUserJourneyCounts(userId);
+        
         if (response.success) {
           setJourneyCounts(response.data);
+          console.log('Journey counts loaded:', response.data);
+        } else {
+          console.log('Failed to load journey counts:', response);
         }
       } catch (error) {
         console.error('Failed to load journey counts:', error);
@@ -81,8 +102,13 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
       }
     };
 
-    loadJourneyCounts();
-  }, []);
+    // Only load if connected to wallet
+    if (isConnected && address) {
+      loadJourneyCounts();
+    } else {
+      setIsLoadingCounts(false);
+    }
+  }, [address, isConnected, userData?.id]); // Depend on user data changes
 
   const menuItems: MenuItem[] = [
     {

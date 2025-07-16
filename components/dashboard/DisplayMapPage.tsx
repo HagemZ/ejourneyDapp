@@ -517,6 +517,7 @@ export default function DisplayMap() {
             />
 
             <JourneyDetailsModal
+              key={selectedJourney?.id || 'no-journey'} // Force re-render when journey changes
               journey={selectedJourney}
               author={
                 selectedJourney ? getAuthor(selectedJourney) : null

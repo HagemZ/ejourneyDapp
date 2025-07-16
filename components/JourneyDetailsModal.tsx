@@ -48,13 +48,23 @@ export default function JourneyDetailsModal({
   const [aiInsights, setAiInsights] = useState<string>('');
   const [loadingAI, setLoadingAI] = useState(false);
 
-  // Fetch reviews and AI insights when modal opens
+  // Fetch reviews and AI insights when modal opens or journey changes
   useEffect(() => {
     if (isOpen && journey) {
+      // Clear previous reviews when journey changes
+      setReviews([]);
+      setAiInsights('');
+      
       loadReviews();
       loadAIInsights();
+    } else if (!isOpen) {
+      // Clear data when modal closes
+      setReviews([]);
+      setAiInsights('');
+      setLoadingReviews(false);
+      setLoadingAI(false);
     }
-  }, [isOpen, journey]);
+  }, [isOpen, journey?.id]); // Use journey.id to detect journey changes
 
   const loadAIInsights = async () => {
     if (!journey) return;
@@ -93,14 +103,22 @@ export default function JourneyDetailsModal({
   const loadReviews = async () => {
     if (!journey) return;
     
+    console.log('Loading reviews for journey:', journey.id);
     setLoadingReviews(true);
     try {
       const result = await fetchReviews({ journeyId: journey.id });
+      console.log('Reviews fetch result:', result);
+      
       if (result.success) {
+        console.log('Setting reviews:', result.reviews);
         setReviews(result.reviews || []);
+      } else {
+        console.error('Failed to fetch reviews:', result.error);
+        setReviews([]); // Clear reviews on error
       }
     } catch (error) {
       console.error('Error loading reviews:', error);
+      setReviews([]); // Clear reviews on error
     } finally {
       setLoadingReviews(false);
     }
@@ -112,7 +130,15 @@ export default function JourneyDetailsModal({
   };
 
   const handleQuickVote = async (voteType: 'upvote' | 'downvote') => {
-    if (!users?.id) {
+    // Use the user's registered ID if available, otherwise use wallet address
+    let userId = users?.address; // Default to wallet address
+    
+    if (users?.id) {
+      // If user is registered, use their registered user ID
+      userId = users.id;
+    }
+    
+    if (!userId) {
       toast.error('Please connect your wallet to vote');
       return;
     }
@@ -122,26 +148,52 @@ export default function JourneyDetailsModal({
       return;
     }
 
+    // Check if user has already voted on this journey
+    const userVote = reviews.find(review => 
+      (review.userId === userId || review.userId === users?.address) && 
+      (review.voteType === 'upvote' || review.voteType === 'downvote')
+    );
+
+    if (userVote) {
+      if (userVote.voteType === voteType) {
+        toast.warning(`You have already ${voteType}d this journey!`);
+        return;
+      } else {
+        toast.warning(`You have already ${userVote.voteType}d this journey. Cannot change your vote.`);
+        return;
+      }
+    }
+
+    console.log('Voting with userId:', userId, 'userDetails:', users);
+
     try {
       const result = await createReview({
         journeyId: journey.id,
-        userId: users.id,
+        userId: userId,
         voteType,
-        rating: voteType === 'upvote' ? 5 : 1 // Auto-assign rating for quick votes
+        rating: voteType === 'upvote' ? 1 : 0 // +1 for upvote, 0 for downvote
       });
 
       if (result.success) {
         // Reload reviews to show the new vote
-        loadReviews();
+        await loadReviews();
         // Notify parent to refresh journey data for updated stats
         onJourneyUpdated?.();
         toast.success(`${voteType === 'upvote' ? 'Upvoted' : 'Downvoted'} successfully!`);
       } else {
-        toast.error(result.error || `Failed to ${voteType}`);
+        // Handle error message properly - convert object to string if needed
+        const errorMessage = typeof result.error === 'string' 
+          ? result.error 
+          : (result.error as any)?.message || (result.error as any)?.error || `Failed to ${voteType}`;
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error(`Error ${voteType}:`, error);
-      toast.error(`Failed to ${voteType}. Please try again.`);
+      // Handle error properly - ensure it's a string
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : `Failed to ${voteType}. Please try again.`;
+      toast.error(errorMessage);
     }
   };
 
@@ -191,10 +243,14 @@ export default function JourneyDetailsModal({
             <h1 className="text-2xl font-heading font-bold text-gray-900 pr-4">
               {journey.title}
             </h1>
-            <div className="flex items-center space-x-1 bg-yellow-50 px-3 py-1 rounded-full">
-              <Star className="w-5 h-5 text-yellow-400 fill-current" />
+            <div className="flex items-center space-x-1 bg-blue-50 px-3 py-1 rounded-full">
+              {(journey.voteScore || 0) >= 0 ? (
+                <ThumbsUp className="w-5 h-5 text-green-500 fill-current" />
+              ) : (
+                <ThumbsDown className="w-5 h-5 text-red-500 fill-current" />
+              )}
               <span className="font-body font-bold text-gray-900">
-                {Number(journey.averageRating || journey.rating).toFixed(1)}/5
+                {journey.voteScore || 0} votes
               </span>
             </div>
           </div>
@@ -290,16 +346,16 @@ export default function JourneyDetailsModal({
               </h2>
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <ThumbsUp className="w-4 h-4" />
-                  <span>{journey.totalVotes || 0} votes</span>
+                  {(journey.voteScore || 0) >= 0 ? (
+                    <ThumbsUp className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <ThumbsDown className="w-4 h-4 text-red-500" />
+                  )}
+                  <span>Score: {journey.voteScore || 0}</span>
                 </div>
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
                   <MessageCircle className="w-4 h-4" />
-                  <span>{journey.reviewCount || 0} reviews</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                  <span>{Number(journey.averageRating || 0).toFixed(1)}/5</span>
+                  <span>{loadingReviews ? 'Loading...' : `${reviews.length} reviews`}</span>
                 </div>
               </div>
             </div>
@@ -331,14 +387,16 @@ export default function JourneyDetailsModal({
 
             {/* Reviews List */}
             <div className="space-y-4">
-              <h3 className="font-body font-semibold text-gray-800">Recent Reviews</h3>
+              <h3 className="font-body font-semibold text-gray-800">
+                Recent Reviews {!loadingReviews && reviews.length > 0 && `(${reviews.length})`}
+              </h3>
               
               {loadingReviews ? (
                 <div className="text-center py-4 text-gray-500">Loading reviews...</div>
               ) : reviews.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No reviews yet. Be the first to share your experience!</p>
+                  <p>No reviews loaded yet. {journey.reviewCount > 0 ? 'Trying to load reviews...' : 'Be the first to share your experience!'}</p>
                 </div>
               ) : (
                 <div className="space-y-4 max-h-64 overflow-y-auto">
@@ -549,11 +607,11 @@ export default function JourneyDetailsModal({
               {/* Quick Stats Grid */}
               <div className="mt-6 grid grid-cols-3 gap-4">
                 <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">
-                  <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-lg mx-auto mb-2">
-                    <Star className="w-4 h-4 text-yellow-600" />
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg mx-auto mb-2">
+                    <ThumbsUp className="w-4 h-4 text-blue-600" />
                   </div>
-                  <div className="text-lg font-bold text-gray-900">{insights.averageRating.toFixed(1)}</div>
-                  <div className="text-xs text-gray-500">Avg Rating</div>
+                  <div className="text-lg font-bold text-gray-900">{insights.voteScore || 0}</div>
+                  <div className="text-xs text-gray-500">Vote Score</div>
                 </div>
 
                 <div className="bg-white p-3 rounded-lg border border-gray-100 text-center">
