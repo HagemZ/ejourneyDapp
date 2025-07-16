@@ -16,6 +16,13 @@ export default function ScheduledJourneysPage() {
   const [scheduledJourneys, setScheduledJourneys] = useState<Journey[]>([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    // Only fetch when wallet is connected and we have user data (or address fallback)
+    if (isConnected && address) {
+      fetchScheduledJourneys();
+    }
+  }, [isConnected, address, userData?.id]); // Add dependencies
+
   // If wallet not connected, show connection prompt instead of redirecting
   if (!isConnected || !address) {
     return (
@@ -59,19 +66,12 @@ export default function ScheduledJourneysPage() {
     );
   }
 
-  useEffect(() => {
-    // Only fetch when wallet is connected and we have user data (or address fallback)
-    if (isConnected && address) {
-      fetchScheduledJourneys();
-    }
-  }, [isConnected, address, userData?.id]); // Add dependencies
-
   const fetchScheduledJourneys = async () => {
     try {
       setLoading(true);
       
       // Use the user's registered ID if available, otherwise use wallet address
-      let userId = address; // Default to wallet address
+      let userId: string = address as string; // Default to wallet address
       
       if (userData?.id) {
         // If user is registered, use their registered user ID
@@ -113,7 +113,8 @@ export default function ScheduledJourneysPage() {
           reviewCount: Number(journey.reviewCount || 0),
           shareType: journey.shareType,
           scheduledAt: journey.scheduledAt ? new Date(journey.scheduledAt) : null,
-          status: journey.status
+          status: journey.status,
+          voteScore: Number(journey.voteScore || 0)
         }));
         
         setScheduledJourneys(formattedJourneys);

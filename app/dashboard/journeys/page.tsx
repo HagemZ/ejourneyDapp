@@ -23,6 +23,17 @@ export default function JourneysOverviewPage() {
     live: 0
   });
 
+  useEffect(() => {
+    // Only fetch when wallet is connected and we have user data (or address fallback)
+    if (isConnected && address) {
+      fetchJourneys();
+      // Fetch stats separately on first load only
+      if (stats.total === 0) {
+        fetchStats();
+      }
+    }
+  }, [activeTab, isConnected, address, userData?.id]); // Add userData dependency
+
   // If wallet not connected, show connection prompt instead of redirecting
   if (!isConnected || !address) {
     return (
@@ -66,25 +77,14 @@ export default function JourneysOverviewPage() {
     );
   }
 
-  useEffect(() => {
-    // Only fetch when wallet is connected and we have user data (or address fallback)
-    if (isConnected && address) {
-      fetchJourneys();
-      // Fetch stats separately on first load only
-      if (stats.total === 0) {
-        fetchStats();
-      }
-    }
-  }, [activeTab, isConnected, address, userData?.id]); // Add userData dependency
-
   const fetchStats = async () => {
     try {
       // Use the user's registered ID if available, otherwise use wallet address
-      let userId = address; // Default to wallet address
+      let userId: string | `0x${string}` = address; // Default to wallet address
       
       if (userData?.id) {
         // If user is registered, use their registered user ID
-        userId = userData.id;
+        userId = userData.id as string;
       }
       
       if (!userId) {
@@ -117,11 +117,11 @@ export default function JourneysOverviewPage() {
       setLoading(true);
       
       // Use the user's registered ID if available, otherwise use wallet address
-      let userId = address; // Default to wallet address
+      let userId: string | `0x${string}` = address; // Default to wallet address
       
       if (userData?.id) {
         // If user is registered, use their registered user ID
-        userId = userData.id;
+        userId = userData.id as string;
       }
       
       if (!userId) {
@@ -160,7 +160,8 @@ export default function JourneysOverviewPage() {
           reviewCount: Number(journey.reviewCount || 0),
           shareType: journey.shareType,
           scheduledAt: journey.scheduledAt ? new Date(journey.scheduledAt) : null,
-          status: journey.status
+          status: journey.status,
+          voteScore: Number(journey.voteScore || 0)
         }));
         
         setJourneys(formattedJourneys);

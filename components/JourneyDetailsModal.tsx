@@ -129,6 +129,51 @@ export default function JourneyDetailsModal({
     onJourneyUpdated?.(); // Notify parent to refresh journey data
   };
 
+  // Check if user has already reviewed this journey
+  const hasUserReviewedJourney = () => {
+    if (!users) return false;
+    
+    let userId = users.address; // Default to wallet address
+    if (users.id) {
+      userId = users.id; // Use registered ID if available
+    }
+    
+    return reviews.some(review => 
+      (review.userId === userId || review.userId === users.address) && 
+      review.voteType === 'review'
+    );
+  };
+
+  // Check if user has any interaction (vote or review) with this journey
+  const hasUserInteractedWithJourney = () => {
+    if (!users) return false;
+    
+    let userId = users.address; // Default to wallet address
+    if (users.id) {
+      userId = users.id; // Use registered ID if available
+    }
+    
+    return reviews.some(review => 
+      (review.userId === userId || review.userId === users.address)
+    );
+  };
+
+  const handleOpenReviewModal = () => {
+    if (hasUserInteractedWithJourney()) {
+      const userInteraction = reviews.find(review => 
+        (review.userId === users?.id || review.userId === users?.address)
+      );
+      
+      if (userInteraction?.voteType === 'review') {
+        toast.warning('You have already reviewed this journey!');
+      } else {
+        toast.warning(`You have already ${userInteraction?.voteType}d this journey. Only one interaction per journey is allowed.`);
+      }
+      return;
+    }
+    setIsReviewModalOpen(true);
+  };
+
   const handleQuickVote = async (voteType: 'upvote' | 'downvote') => {
     // Use the user's registered ID if available, otherwise use wallet address
     let userId = users?.address; // Default to wallet address
@@ -363,11 +408,16 @@ export default function JourneyDetailsModal({
             {/* Quick Vote Buttons */}
             <div className="flex space-x-3 mb-6">
               <button
-                onClick={() => setIsReviewModalOpen(true)}
-                className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                onClick={handleOpenReviewModal}
+                disabled={hasUserInteractedWithJourney()}
+                className={`flex-1 px-4 py-3 ${
+                  hasUserInteractedWithJourney() 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700'
+                } text-white rounded-lg transition-colors flex items-center justify-center space-x-2`}
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>Write Review</span>
+                <span>{hasUserInteractedWithJourney() ? 'Already Interacted' : 'Write Review'}</span>
               </button>
               <button
                 onClick={() => handleQuickVote('upvote')}
@@ -426,7 +476,7 @@ export default function JourneyDetailsModal({
                           {review.voteType === 'review' && review.rating && (
                             <div className="flex items-center">
                               <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                              <span className="text-sm font-medium ml-1">{review.rating}/5</span>
+                              <span className="text-sm text-foreground font-medium ml-1">{review.rating}/5</span>
                             </div>
                           )}
                         </div>
@@ -610,7 +660,7 @@ export default function JourneyDetailsModal({
                   <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg mx-auto mb-2">
                     <ThumbsUp className="w-4 h-4 text-blue-600" />
                   </div>
-                  <div className="text-lg font-bold text-gray-900">{insights.voteScore || 0}</div>
+                  <div className="text-lg font-bold text-gray-900">{journey.voteScore || 0}</div>
                   <div className="text-xs text-gray-500">Vote Score</div>
                 </div>
 
@@ -656,13 +706,20 @@ export default function JourneyDetailsModal({
               <h2 className="text-lg font-heading font-semibold text-gray-900">
                 Reviews
               </h2>
-              <button
-                onClick={() => setIsReviewModalOpen(true)}
-                className="flex items-center space-x-2 text-primary-600 hover:text-primary-800 transition-colors duration-200"
-              >
-                <MessageCircle className="w-5 h-5" />
-                <span className="font-body text-sm">Write a Review</span>
-              </button>
+              {!hasUserInteractedWithJourney() ? (
+                <button
+                  onClick={handleOpenReviewModal}
+                  className="flex items-center space-x-2 text-primary-600 hover:text-primary-800 transition-colors duration-200"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  <span className="font-body text-sm">Write a Review</span>
+                </button>
+              ) : (
+                <div className="flex items-center space-x-2 text-gray-500">
+                  <MessageCircle className="w-5 h-5" />
+                  <span className="font-body text-sm">Already Interacted</span>
+                </div>
+              )}
             </div>
 
             {loadingReviews ? (

@@ -18,6 +18,13 @@ export default function LiveJourneysPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  useEffect(() => {
+    // Only fetch when wallet is connected and we have user data (or address fallback)
+    if (isConnected && address) {
+      fetchLiveJourneys();
+    }
+  }, [isConnected, address, userData?.id]); // Add dependencies
+
   // If wallet not connected, show connection prompt instead of redirecting
   if (!isConnected || !address) {
     return (
@@ -61,28 +68,20 @@ export default function LiveJourneysPage() {
     );
   }
 
-  useEffect(() => {
-    // Only fetch when wallet is connected and we have user data (or address fallback)
-    if (isConnected && address) {
-      fetchLiveJourneys();
-    }
-  }, [isConnected, address, userData?.id]); // Add dependencies
-
   const fetchLiveJourneys = async () => {
     try {
       setLoading(true);
       
       // Use the user's registered ID if available, otherwise use wallet address
-      let userId = address; // Default to wallet address
+      let userId: string | `0x${string}` = address; // Default to wallet address
       
       if (userData?.id) {
         // If user is registered, use their registered user ID
-        userId = userData.id;
+        userId = userData.id as string;
       }
       
       if (!userId) {
-        console.log('No userId available for fetching live journeys');
-        setLoading(false);
+        console.log('No userId available for stats');
         return;
       }
       
@@ -115,7 +114,8 @@ export default function LiveJourneysPage() {
           reviewCount: Number(journey.reviewCount || 0),
           shareType: journey.shareType,
           scheduledAt: journey.scheduledAt ? new Date(journey.scheduledAt) : null,
-          status: journey.status
+          status: journey.status,
+          voteScore: Number(journey.voteScore || 0)
         }));
         
         setLiveJourneys(formattedJourneys);

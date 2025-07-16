@@ -22,7 +22,7 @@ export default function DraftJourneysPage() {
       setLoading(true);
       
       // Use the user's registered ID if available, otherwise use wallet address
-      let userId = address; // Default to wallet address
+      let userId: string = address || ''; // Default to wallet address
       
       if (userData?.id) {
         // If user is registered, use their registered user ID
@@ -64,12 +64,13 @@ export default function DraftJourneysPage() {
           reviewCount: Number(journey.reviewCount || 0),
           shareType: journey.shareType,
           scheduledAt: journey.scheduledAt ? new Date(journey.scheduledAt) : null,
-          status: journey.status
+          status: journey.status,
+            voteScore: Number(journey.voteScore || 0)
         }));
         
         setJourneys(formattedJourneys);
       } else {
-        console.error('Failed to fetch draft journeys:', response.error);
+        console.error('Failed to fetch draft journeys:', 'Unknown error');
       }
     } catch (error) {
       console.error('Error fetching draft journeys:', error);
@@ -232,7 +233,7 @@ export default function DraftJourneysPage() {
                 </h1>
               </div>
               <p className="text-lg text-gray-600">
-                Continue working on your travel stories • {drafts.length} draft{drafts.length !== 1 ? 's' : ''}
+                Continue working on your travel stories • {journeys.length} draft{journeys.length !== 1 ? 's' : ''}
               </p>
             </div>
             <button
@@ -246,7 +247,7 @@ export default function DraftJourneysPage() {
         </div>
 
         {/* Drafts Grid */}
-        {drafts.length === 0 ? (
+        {journeys.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
             <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No drafts yet</h3>
@@ -262,7 +263,7 @@ export default function DraftJourneysPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {drafts.map((draft) => (
+            {journeys.map((draft) => (
               <div key={draft.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
                 {/* Image */}
                 <div className="h-48 bg-gray-200 relative">
@@ -360,7 +361,7 @@ export default function DraftJourneysPage() {
         )}
 
         {/* Quick Tips */}
-        {drafts.length > 0 && (
+        {journeys.length > 0 && (
           <div className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
             <h3 className="text-lg font-semibold text-blue-900 mb-2">💡 Quick Tips</h3>
             <ul className="text-blue-800 text-sm space-y-1">

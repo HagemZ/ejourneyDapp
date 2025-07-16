@@ -27,6 +27,12 @@ export default function EditScheduledPage() {
     shareType: "scheduled" as "draft" | "scheduled" | "live"
   });
 
+  useEffect(() => {
+    if (isConnected && address) {
+      fetchJourney();
+    }
+  }, [journeyId, isConnected, address]);
+
   // If wallet not connected, show connection prompt
   if (!isConnected || !address) {
     return (
@@ -69,12 +75,6 @@ export default function EditScheduledPage() {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (isConnected && address) {
-      fetchJourney();
-    }
-  }, [journeyId, isConnected, address]);
 
   const fetchJourney = async () => {
     try {

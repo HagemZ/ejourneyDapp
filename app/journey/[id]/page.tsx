@@ -73,6 +73,7 @@ export default function JourneyViewPage() {
           createdAt: new Date(journeyData.createdAt),
           verifiedLocation: Boolean(journeyData.verifiedLocation),
           totalVotes: Number(journeyData.totalVotes || 0),
+          voteScore: Number(journeyData.voteScore || 0),
           averageRating: Number(journeyData.averageRating || 0),
           reviewCount: Number(journeyData.reviewCount || 0),
           shareType: journeyData.shareType,
@@ -249,7 +250,7 @@ export default function JourneyViewPage() {
 
             {/* Navigation Links */}
             <div className="flex items-center space-x-2 sm:space-x-4">
-              <button
+              {/* <button
                 onClick={() => router.push('/')}
                 className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               >
@@ -263,7 +264,7 @@ export default function JourneyViewPage() {
               >
                 <Map className="w-4 h-4" />
                 <span className="hidden sm:inline text-sm font-medium">Dashboard</span>
-              </button>
+              </button> */}
 
               {/* Wallet Connect Button - Optional for public viewing */}
               <ConnectButtonCustom />
@@ -275,7 +276,7 @@ export default function JourneyViewPage() {
       <div className="pt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {/* Back Button */}
-          <div className="mb-6">
+          {/* <div className="mb-6">
             <button
               onClick={() => router.back()}
               className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -284,7 +285,7 @@ export default function JourneyViewPage() {
               <span className="hidden sm:inline">Back</span>
               <span className="sm:hidden">Back</span>
             </button>
-          </div>
+          </div> */}
 
           {/* Journey Header */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 mb-6">

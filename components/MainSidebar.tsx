@@ -76,7 +76,7 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
         
         if (userData?.id) {
           // If user is registered, use their registered user ID
-          userId = userData.id;
+          userId = userData.id as `0x${string}`;
         }
         
         if (!userId) {

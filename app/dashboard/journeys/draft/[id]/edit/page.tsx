@@ -32,6 +32,12 @@ export default function EditDraftPage() {
   //   console.log('FormData state changed:', formData);
   // }, [formData]);
 
+  useEffect(() => {
+    if (isConnected && address) {
+      fetchJourney();
+    }
+  }, [journeyId, isConnected, address]);
+
   // If wallet not connected, show connection prompt
   if (!isConnected || !address) {
     return (
@@ -74,12 +80,6 @@ export default function EditDraftPage() {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (isConnected && address) {
-      fetchJourney();
-    }
-  }, [journeyId, isConnected, address]);
 
   const fetchJourney = async () => {
     try {

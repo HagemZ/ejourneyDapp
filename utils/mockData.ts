@@ -36,8 +36,11 @@ export const mockJourneys: Journey[] = [
     createdAt: new Date('2024-03-15'),
     verifiedLocation: true,
     totalVotes: 12,
+    voteScore: 8,
     averageRating: 4.8,
-    reviewCount: 8
+    reviewCount: 8,
+    shareType: 'live',
+    status: 'active'
   },
   {
     id: '2',
@@ -59,8 +62,11 @@ export const mockJourneys: Journey[] = [
     createdAt: new Date('2024-02-20'),
     verifiedLocation: true,
     totalVotes: 15,
+    voteScore: 11,
     averageRating: 4.6,
-    reviewCount: 10
+    reviewCount: 10,
+    shareType: 'live',
+    status: 'active'
   },
   {
     id: '3',
@@ -81,8 +87,11 @@ export const mockJourneys: Journey[] = [
     createdAt: new Date('2024-01-10'),
     verifiedLocation: true,
     totalVotes: 7,
+    voteScore: 3,
     averageRating: 4.2,
-    reviewCount: 5
+    reviewCount: 5,
+    shareType: 'live',
+    status: 'active'
   }
 ];
 export interface LocationSuggestion {
