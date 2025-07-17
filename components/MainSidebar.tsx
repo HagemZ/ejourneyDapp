@@ -58,6 +58,7 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
     total: 0
   });
   const [isLoadingCounts, setIsLoadingCounts] = useState(true);
+  const [missionCount, setMissionCount] = useState(0);
   
   // Modal states - only for non-journey items
   const [isMissionModalOpen, setIsMissionModalOpen] = useState(false);
@@ -110,6 +111,63 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
     }
   }, [address, isConnected, userData?.id]); // Depend on user data changes
 
+  // Load mission counts
+  useEffect(() => {
+    const loadMissionCounts = async () => {
+      try {
+        // Use the user's registered ID if available, otherwise use wallet address
+        let userId = userData?.id || address; // Try registered user ID first, then wallet address
+        
+        console.log('MainSidebar - userData?.id:', userData?.id);
+        console.log('MainSidebar - address:', address);
+        console.log('MainSidebar - selected userId:', userId);
+        
+        if (!userId) {
+          console.log('No userId available for mission counts');
+          setMissionCount(0);
+          return;
+        }
+        
+        console.log('Loading mission counts for userId:', userId);
+        
+        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3033';
+        const apiUrl = `${baseUrl}/api/users/${userId}/mission-stats`;
+        console.log('Mission stats API URL:', apiUrl);
+        
+        const response = await fetch(apiUrl);
+        
+        console.log('Mission stats response status:', response.status);
+        
+        if (response.ok) {
+          const result = await response.json();
+          const missionStats = result.data;
+          
+          console.log('Mission stats result:', result);
+          console.log('Mission breakdown:', missionStats.mission_breakdown);
+          
+          // Set the active mission count
+          const activeCount = missionStats.mission_breakdown?.in_progress_missions || 0;
+          setMissionCount(activeCount);
+          console.log('Set mission count to:', activeCount);
+        } else {
+          console.log('Failed to load mission counts - status:', response.status);
+          setMissionCount(0);
+        }
+      } catch (error) {
+        console.error('Failed to load mission counts:', error);
+        setMissionCount(0);
+      }
+    };
+
+    // Load mission counts when component mounts or when user data changes
+    if (isConnected && (userData?.id || address)) {
+      loadMissionCounts();
+    } else {
+      console.log('Not loading mission counts - isConnected:', isConnected, 'userId:', userData?.id || address);
+      setMissionCount(0);
+    }
+  }, [address, isConnected, userData?.id]);
+
   const menuItems: MenuItem[] = [
     {
       id: 'my-journey',
@@ -155,7 +213,7 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
       id: 'mission',
       label: 'Mission',
       icon: <Award className="w-5 h-5" />,
-      count: 5
+      count: missionCount
     },
     {
       id: 'reward',
@@ -215,7 +273,7 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
           }
           break;
         case 'mission':
-          setIsMissionModalOpen(true);
+          router.push('/dashboard/missions');
           break;
         case 'reward':
           setIsRewardModalOpen(true);
