@@ -132,34 +132,10 @@ export default function RewardsPage() {
   const fetchUserBalance = async () => {
     if (!userId) return;
     try {
-      console.log('Fetching user balance for userId:', userId);
       const data = await rewardsAPI.getUserBalance(userId);
-      console.log('User balance response:', data);
       setUserBalance(data.data.balance);
     } catch (error) {
       console.error('Error fetching user balance:', handleAPIError(error));
-      // Try to initialize user if they don't exist
-      if (error instanceof Error && error.message?.includes('not found')) {
-        console.log('User not found, attempting to initialize...');
-        try {
-          await rewardsAPI.initializeUser(userId);
-          console.log('User initialized successfully, retrying fetch...');
-          // Retry fetching user balance after initialization
-          const retryData = await rewardsAPI.getUserBalance(userId);
-          setUserBalance(retryData.data.balance);
-        } catch (initError) {
-          console.error('Failed to initialize user:', initError);
-          // Set default values as fallback
-          setUserBalance({
-            total_points: 0,
-            rank: 'Explorer',
-            next_rank: 'Adventurer',
-            points_to_next_rank: 1000,
-            achievement_level: 1,
-            missions_completed: 0
-          });
-        }
-      }
     }
   };
 
@@ -198,23 +174,10 @@ export default function RewardsPage() {
   const fetchRankProgress = async () => {
     if (!userId) return;
     try {
-      console.log('Fetching rank progress for userId:', userId);
       const data = await rewardsAPI.getRankProgress(userId);
-      console.log('Rank progress response:', data);
       setRankProgress(data.data);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching rank progress:', handleAPIError(error));
-      // If user not found, try to initialize them
-      if (error instanceof Error && error.message?.includes('not found')) {
-        try {
-          await rewardsAPI.initializeUser(userId);
-          // Retry after initialization
-          const retryData = await rewardsAPI.getRankProgress(userId);
-          setRankProgress(retryData.data);
-        } catch (initError) {
-          console.error('Failed to initialize user for rank progress:', initError);
-        }
-      }
     }
   };
 

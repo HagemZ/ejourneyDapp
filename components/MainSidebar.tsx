@@ -288,7 +288,7 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
           router.push('/dashboard/missions');
           break;
         case 'reward':
-          setIsRewardModalOpen(true);
+          router.push('/dashboard/rewards');
           break;
         case 'how-to':
           setIsHowToModalOpen(true);
