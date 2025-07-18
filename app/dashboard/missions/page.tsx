@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Award, Target, CheckCircle, Clock, Star, Users, Trophy, Shield, User, ArrowLeft } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import ConnectButtonCustom from "@/components/ConnectButtonCustom";
 import Header from "@/components/Header";
 import useGetUserData from "@/hooks/useAddress";
@@ -46,15 +47,20 @@ interface UserStats {
 export default function MissionsPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { users: userData } = useGetUserData();
+  const { users: userData, loading: userDataLoading } = useGetUserData();
   const [missions, setMissions] = useState<Mission[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Get user ID from localStorage or context (adjust based on your auth system)
+  // Get user ID with proper priority: registered user ID first, then wallet address
   const getUserId = () => {
-    // Use the same logic as MainSidebar for consistency
+    // If userData is still loading, don't return anything yet
+    if (userDataLoading) {
+      console.log('getUserId - userData still loading, waiting...');
+      return null;
+    }
+    
     // Priority: registered user ID, then wallet address
     const userId = userData?.id || address;
     
@@ -73,10 +79,12 @@ export default function MissionsPage() {
   // Fetch user missions and stats
   useEffect(() => {
     const fetchMissionData = async () => {
-      // Don't fetch if no valid userId
-      if (!userId) {
-        console.log('No valid userId available for mission data');
-        setLoading(false);
+      // Don't fetch if userData is still loading or no valid userId
+      if (userDataLoading || !userId) {
+        console.log('Not fetching mission data yet - userDataLoading:', userDataLoading, 'userId:', userId);
+        if (!userDataLoading && !userId) {
+          setLoading(false);
+        }
         return;
       }
 
@@ -121,7 +129,7 @@ export default function MissionsPage() {
     };
 
     fetchMissionData();
-  }, [userId, userData?.id, address]); // Re-fetch when user data changes
+  }, [userId, userDataLoading]); // Re-fetch when userId changes or userDataLoading completes
 
   // Redirect to dashboard if wallet not connected
   useEffect(() => {
@@ -133,7 +141,7 @@ export default function MissionsPage() {
   // Start a mission
   const startMission = async (missionId: string) => {
     if (!userId) {
-      alert('User not authenticated');
+      toast.error('User not authenticated');
       return;
     }
 
@@ -148,24 +156,25 @@ export default function MissionsPage() {
       });
 
       if (response.ok) {
+        toast.success('Mission started successfully!');
         // Refresh mission data
         const missionsResponse = await fetch(`${baseUrl}/api/users/${userId}/missions`);
         const missionsData = await missionsResponse.json();
         setMissions(missionsData.data || []);
       } else {
         const errorData = await response.json();
-        alert(errorData.error || 'Failed to start mission');
+        toast.error(errorData.error || 'Failed to start mission');
       }
     } catch (err) {
       console.error('Error starting mission:', err);
-      alert('Failed to start mission');
+      toast.error('Failed to start mission');
     }
   };
 
-  // Claim mission reward
+  // Claim reward for a completed mission
   const claimReward = async (missionId: string) => {
     if (!userId) {
-      alert('User not authenticated');
+      toast.error('User not authenticated');
       return;
     }
 
@@ -180,27 +189,19 @@ export default function MissionsPage() {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        alert(`Reward claimed! You earned ${result.data.points_awarded} points.`);
-        
+        const rewardData = await response.json();
+        toast.success(`Reward claimed successfully! You earned ${rewardData.data.rewardAmount} XP`);
         // Refresh mission data
-        const [missionsResponse, statsResponse] = await Promise.all([
-          fetch(`${baseUrl}/api/users/${userId}/missions`),
-          fetch(`${baseUrl}/api/users/${userId}/mission-stats`)
-        ]);
-        
+        const missionsResponse = await fetch(`${baseUrl}/api/users/${userId}/missions`);
         const missionsData = await missionsResponse.json();
-        const statsData = await statsResponse.json();
-        
         setMissions(missionsData.data || []);
-        setUserStats(statsData.data);
       } else {
         const errorData = await response.json();
-        alert(errorData.error || 'Failed to claim reward');
+        toast.error(errorData.error || 'Failed to claim reward');
       }
     } catch (err) {
       console.error('Error claiming reward:', err);
-      alert('Failed to claim reward');
+      toast.error('Failed to claim reward');
     }
   };
 

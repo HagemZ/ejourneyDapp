@@ -48,7 +48,7 @@ interface MenuItem {
 export default function MainSidebar({ isOpen, onToggle, className = "", onRecentJourneysToggle }: MainSidebarProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { users: userData } = useGetUserData();
+  const { users: userData, loading: userDataLoading } = useGetUserData();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['my-journey']);
   const [activeMenu, setActiveMenu] = useState<string>('');
   const [journeyCounts, setJourneyCounts] = useState<JourneyCounts>({
@@ -71,6 +71,12 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
     const loadJourneyCounts = async () => {
       try {
         setIsLoadingCounts(true);
+        
+        // Wait for user data to finish loading
+        if (userDataLoading) {
+          console.log('User data still loading, waiting for journey counts...');
+          return;
+        }
         
         // Use the user's registered ID if available, otherwise use wallet address
         let userId = address; // Default to wallet address
@@ -109,12 +115,18 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
     } else {
       setIsLoadingCounts(false);
     }
-  }, [address, isConnected, userData?.id]); // Depend on user data changes
+  }, [address, isConnected, userData?.id, userDataLoading]); // Depend on user data changes and loading state
 
   // Load mission counts
   useEffect(() => {
     const loadMissionCounts = async () => {
       try {
+        // Wait for user data to finish loading
+        if (userDataLoading) {
+          console.log('User data still loading, waiting for mission counts...');
+          return;
+        }
+        
         // Use the user's registered ID if available, otherwise use wallet address
         let userId = userData?.id || address; // Try registered user ID first, then wallet address
         
@@ -166,7 +178,7 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
       console.log('Not loading mission counts - isConnected:', isConnected, 'userId:', userData?.id || address);
       setMissionCount(0);
     }
-  }, [address, isConnected, userData?.id]);
+  }, [address, isConnected, userData?.id, userDataLoading]);
 
   const menuItems: MenuItem[] = [
     {
