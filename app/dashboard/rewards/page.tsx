@@ -29,6 +29,13 @@ interface Reward {
   icon: string;
   color: string;
   is_available: boolean;
+  is_repeatable: boolean;
+  user_redemption_count?: number;
+  last_redeemed_at?: string;
+  has_been_claimed?: boolean;
+  can_claim?: boolean;
+  claim_block_reason?: string;
+  remaining_claims?: number;
   metadata: any;
 }
 
@@ -165,11 +172,19 @@ export default function RewardsPage() {
 
   // Fetch available rewards
   const fetchRewards = async () => {
+    if (!userId) return;
     try {
-      const data = await rewardsAPI.getRewards({ available_only: true });
+      const data = await rewardsAPI.getUserRewards(userId, { available_only: true });
       setRewards(data.data);
     } catch (error) {
       console.error('Error fetching rewards:', handleAPIError(error));
+      // Fallback to general rewards if user-specific fetch fails
+      try {
+        const fallbackData = await rewardsAPI.getRewards({ available_only: true });
+        setRewards(fallbackData.data);
+      } catch (fallbackError) {
+        console.error('Error fetching fallback rewards:', handleAPIError(fallbackError));
+      }
     }
   };
 
@@ -228,7 +243,30 @@ export default function RewardsPage() {
     setRedeeming(rewardId);
     try {
       const data = await rewardsAPI.redeemReward(userId, rewardId);
-      toast.success(`Successfully redeemed! ${data.data.voucher_code ? `Voucher code: ${data.data.voucher_code}` : ''}`);
+      
+      // Enhanced success message with token information
+      let successMessage = 'Successfully redeemed!';
+      
+      if (data.data.voucher_code) {
+        successMessage += ` Voucher code: ${data.data.voucher_code}`;
+      }
+      
+      if (data.data.token_reward && data.data.token_reward.attempted) {
+        if (data.data.token_reward.success) {
+          successMessage += ` 🎉 ${data.data.token_reward.token_amount} JTN tokens transferred to your wallet!`;
+        } else {
+          successMessage += ` (Note: Token transfer failed - ${data.data.token_reward.error})`;
+        }
+      }
+      
+      toast.success(successMessage, {
+        duration: 5000, // Show longer for token information
+      });
+      
+      // Show detailed token info in console for debugging
+      if (data.data.token_reward) {
+        console.log('Token reward details:', data.data.token_reward);
+      }
       
       // Refresh data
       await Promise.all([
@@ -237,7 +275,17 @@ export default function RewardsPage() {
         fetchRedemptionHistory(),
       ]);
     } catch (error) {
-      toast.error(`Error: ${handleAPIError(error)}`);
+      const errorMessage = handleAPIError(error);
+      toast.error(`Error: ${errorMessage}`);
+      
+      // Show specific error codes for better UX
+      if (error instanceof Error) {
+        if (error.message.includes('Already claimed')) {
+          toast.error('This badge has already been claimed!', { duration: 4000 });
+        } else if (error.message.includes('Usage limit exceeded')) {
+          toast.error('You have reached the maximum number of redemptions for this reward', { duration: 4000 });
+        }
+      }
     } finally {
       setRedeeming(null);
     }
@@ -418,20 +466,82 @@ export default function RewardsPage() {
                       const colorClasses = getColorClasses(reward.color);
                       const canAfford = userBalance ? userBalance.total_points >= reward.cost_points : false;
                       const isRedeeming = redeeming === reward.id;
+                      const canClaim = reward.can_claim !== undefined ? reward.can_claim : true;
+                      const hasClaimed = reward.has_been_claimed || false;
+                      const isBadgeOrFeature = reward.type === 'badge' || reward.type === 'feature';
+                      
+                      // Determine button state and text
+                      let buttonText = 'Redeem';
+                      let buttonDisabled = false;
+                      let buttonClass = colorClasses.button;
+                      
+                      if (isRedeeming) {
+                        buttonText = 'Redeeming...';
+                        buttonDisabled = true;
+                      } else if (isBadgeOrFeature && hasClaimed) {
+                        // Check if already claimed FIRST (highest priority)
+                        buttonText = 'Already Claimed';
+                        buttonDisabled = true;
+                        buttonClass = 'bg-green-500 cursor-not-allowed';
+                      } else if (!canClaim && reward.claim_block_reason) {
+                        buttonText = reward.claim_block_reason;
+                        buttonDisabled = true;
+                        buttonClass = 'bg-gray-400 cursor-not-allowed';
+                      } else if (!reward.is_available) {
+                        buttonText = 'Out of Stock';
+                        buttonDisabled = true;
+                        buttonClass = 'bg-gray-400 cursor-not-allowed';
+                      } else if (!canAfford) {
+                        buttonText = 'Insufficient Points';
+                        buttonDisabled = true;
+                        buttonClass = 'bg-gray-400 cursor-not-allowed';
+                      }
                       
                       return (
-                        <div key={reward.id} className={`border border-gray-200 rounded-lg p-4 transition-all hover:shadow-md ${colorClasses.hover}`}>
+                        <div key={reward.id} className={`border border-gray-200 rounded-lg p-4 transition-all hover:shadow-md ${colorClasses.hover} ${hasClaimed && isBadgeOrFeature ? 'bg-green-50 border-green-200' : ''}`}>
                           <div className="flex items-start space-x-3">
-                            <div className={`p-2 ${colorClasses.bg} rounded-lg`}>
+                            <div className={`p-2 ${colorClasses.bg} rounded-lg relative`}>
                               {getIconComponent(reward.icon, `w-6 h-6 ${colorClasses.text}`)}
+                              {hasClaimed && isBadgeOrFeature && (
+                                <CheckCircle className="w-4 h-4 text-green-600 absolute -top-1 -right-1 bg-white rounded-full" />
+                              )}
                             </div>
                             <div className="flex-1">
-                              <h3 className="font-semibold text-gray-900 mb-1">
-                                {reward.title}
-                              </h3>
+                              <div className="flex items-center space-x-2 mb-1">
+                                <h3 className="font-semibold text-gray-900">
+                                  {reward.title}
+                                </h3>
+                                {isBadgeOrFeature && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                    {reward.type === 'badge' ? 'Badge' : 'Feature'}
+                                  </span>
+                                )}
+                                {reward.is_repeatable && (
+                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                    Repeatable
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-sm text-gray-600 mb-3">
                                 {reward.description}
                               </p>
+                              
+                              {/* Show claim count for repeatable rewards */}
+                              {reward.is_repeatable && reward.user_redemption_count !== undefined && reward.user_redemption_count > 0 && (
+                                <p className="text-xs text-gray-500 mb-2">
+                                  Claimed {reward.user_redemption_count} time{reward.user_redemption_count > 1 ? 's' : ''}
+                                  {reward.remaining_claims !== undefined && reward.remaining_claims > 0 && (
+                                    <span> • {reward.remaining_claims} remaining</span>
+                                  )}
+                                </p>
+                              )}
+                              
+                              {hasClaimed && reward.last_redeemed_at && (
+                                <p className="text-xs text-green-600 mb-2">
+                                  Last claimed: {formatTimeAgo(reward.last_redeemed_at)}
+                                </p>
+                              )}
+                              
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-1">
                                   <Coins className="w-4 h-4 text-yellow-600" />
@@ -441,16 +551,11 @@ export default function RewardsPage() {
                                 </div>
                                 <button 
                                   onClick={() => handleRedeem(reward.id)}
-                                  disabled={!canAfford || !reward.is_available || isRedeeming}
-                                  className={`px-3 py-1 text-white text-sm rounded transition-colors ${
-                                    canAfford && reward.is_available && !isRedeeming
-                                      ? colorClasses.button
-                                      : 'bg-gray-400 cursor-not-allowed'
-                                  }`}
+                                  disabled={buttonDisabled}
+                                  className={`px-3 py-1 text-white text-sm rounded transition-colors ${buttonClass}`}
+                                  title={buttonDisabled ? buttonText : ''}
                                 >
-                                  {isRedeeming ? 'Redeeming...' : 
-                                   !reward.is_available ? 'Out of Stock' :
-                                   !canAfford ? 'Insufficient Points' : 'Redeem'}
+                                  {buttonText}
                                 </button>
                               </div>
                             </div>

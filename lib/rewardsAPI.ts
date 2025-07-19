@@ -22,6 +22,18 @@ export const rewardsAPI = {
     return response.json();
   },
 
+  // Get rewards with user-specific information
+  getUserRewards: async (userId: string, filters?: { category?: string; type?: string; available_only?: boolean }) => {
+    const params = new URLSearchParams();
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.type) params.append('type', filters.type);
+    if (filters?.available_only) params.append('available_only', 'true');
+    
+    const response = await fetch(`${API_BASE_URL}/api/rewards/user/${userId}?${params}`);
+    if (!response.ok) throw new Error('Failed to fetch user rewards');
+    return response.json();
+  },
+
   // Get user redemption history
   getRedemptionHistory: async (userId: string, options?: { limit?: number; offset?: number; status?: string }) => {
     const params = new URLSearchParams();
