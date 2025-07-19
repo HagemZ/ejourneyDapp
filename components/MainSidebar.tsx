@@ -48,7 +48,7 @@ interface MenuItem {
 export default function MainSidebar({ isOpen, onToggle, className = "", onRecentJourneysToggle }: MainSidebarProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { users: userData, loading: userDataLoading } = useGetUserData();
+  const { users: userData, loading: userDataLoading, needsRegistration } = useGetUserData();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['my-journey']);
   const [activeMenu, setActiveMenu] = useState<string>('');
   const [journeyCounts, setJourneyCounts] = useState<JourneyCounts>({
@@ -72,19 +72,38 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
       try {
         setIsLoadingCounts(true);
         
-        // Wait for user data to finish loading
+        // Check if user needs to register first
         if (userDataLoading) {
           console.log('User data still loading, waiting for journey counts...');
           return;
         }
         
-        // Use the user's registered ID if available, otherwise use wallet address
-        let userId = address; // Default to wallet address
-        
-        if (userData?.id) {
-          // If user is registered, use their registered user ID
-          userId = userData.id as `0x${string}`;
+        // If user needs registration, show empty counts
+        if (needsRegistration) {
+          console.log('User needs registration - showing empty journey counts');
+          setJourneyCounts({
+            live: 0,
+            draft: 0,
+            scheduled: 0,
+            total: 0
+          });
+          setIsLoadingCounts(false);
+          return;
         }
+        
+        // Use the user's registered database ID if available, otherwise use wallet address
+        let userId: string = address || ''; // Default to wallet address
+        
+        // If user is registered (has userData with real database ID), use the database ID
+        if (userData?.id) {
+          userId = userData.id;
+        }
+        
+        console.log('JourneyCounts - userData?.id:', userData?.id);
+        console.log('JourneyCounts - userData?.address:', userData?.address);
+        console.log('JourneyCounts - wallet address:', address);
+        console.log('JourneyCounts - needs registration:', needsRegistration);
+        console.log('JourneyCounts - selected userId:', userId);
         
         if (!userId) {
           console.log('No userId available for journey counts');
@@ -109,29 +128,44 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
       }
     };
 
-    // Only load if connected to wallet
-    if (isConnected && address) {
+    // Only load if connected to wallet and user is registered
+    if (isConnected && address && !needsRegistration) {
       loadJourneyCounts();
     } else {
+      console.log('Not loading journey counts - isConnected:', isConnected, 'address:', address, 'needsRegistration:', needsRegistration);
       setIsLoadingCounts(false);
     }
-  }, [address, isConnected, userData?.id, userDataLoading]); // Depend on user data changes and loading state
+  }, [address, isConnected, userData?.id, userDataLoading, needsRegistration]); // Depend on user data changes and loading state
 
   // Load mission counts
   useEffect(() => {
     const loadMissionCounts = async () => {
       try {
-        // Wait for user data to finish loading
+        // Check if user needs to register first
         if (userDataLoading) {
           console.log('User data still loading, waiting for mission counts...');
           return;
         }
         
-        // Use the user's registered ID if available, otherwise use wallet address
-        let userId = userData?.id || address; // Try registered user ID first, then wallet address
+        // If user needs registration, show empty counts
+        if (needsRegistration) {
+          console.log('User needs registration - showing empty mission counts');
+          setMissionCount(0);
+          return;
+        }
+        
+        // Use the user's registered database ID if available, otherwise use wallet address
+        let userId = address; // Default to wallet address
+        
+        // If user is registered (has userData with real database ID), use the database ID
+        if (userData?.id) {
+          userId = userData.id as `0x${string}`;
+        }
         
         console.log('MainSidebar - userData?.id:', userData?.id);
-        console.log('MainSidebar - address:', address);
+        console.log('MainSidebar - userData?.address:', userData?.address);
+        console.log('MainSidebar - wallet address:', address);
+        console.log('MainSidebar - needs registration:', needsRegistration);
         console.log('MainSidebar - selected userId:', userId);
         
         if (!userId) {
@@ -172,13 +206,13 @@ export default function MainSidebar({ isOpen, onToggle, className = "", onRecent
     };
 
     // Load mission counts when component mounts or when user data changes
-    if (isConnected && (userData?.id || address)) {
+    if (isConnected && (userData?.id || address) && !needsRegistration) {
       loadMissionCounts();
     } else {
-      console.log('Not loading mission counts - isConnected:', isConnected, 'userId:', userData?.id || address);
+      console.log('Not loading mission counts - isConnected:', isConnected, 'userId:', userData?.id || address, 'needsRegistration:', needsRegistration);
       setMissionCount(0);
     }
-  }, [address, isConnected, userData?.id, userDataLoading]);
+  }, [address, isConnected, userData?.id, userDataLoading, needsRegistration]);
 
   const menuItems: MenuItem[] = [
     {

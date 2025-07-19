@@ -343,7 +343,7 @@ export default function JourneyModal({
     } else if (selectedLocation && locationVerified) {
       setLocationVerified(false); // Reset for selected locations
     }
-  }, [selectedLocation, verificationLocation, coordinates, locationVerified]);
+  }, [selectedLocation, verificationLocation, coordinates]); // Removed locationVerified to prevent infinite loop
 
   React.useEffect(() => {
     if (coordinates && selectedLocation) {
@@ -362,7 +362,7 @@ export default function JourneyModal({
         setLocationVerified(shouldBeVerified);
       }
     }
-  }, [coordinates, selectedLocation, locationVerified]);
+  }, [coordinates, selectedLocation]); // Removed locationVerified to prevent infinite loop
 
   if (!isOpen || !users) return null;
 

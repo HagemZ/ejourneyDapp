@@ -79,7 +79,7 @@ interface RankProgress {
 export default function RewardsPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { users: userData, loading: userDataLoading } = useGetUserData();
+  const { users: userData, loading: userDataLoading, needsRegistration } = useGetUserData();
   const [userBalance, setUserBalance] = useState<UserBalance | null>(null);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [redemptionHistory, setRedemptionHistory] = useState<RedemptionHistory[]>([]);
@@ -94,6 +94,12 @@ export default function RewardsPage() {
     // If userData is still loading, don't return anything yet
     if (userDataLoading) {
       console.log('getUserId - userData still loading, waiting...');
+      return null;
+    }
+    
+    // If user needs registration, return null to prevent API calls
+    if (needsRegistration) {
+      console.log('getUserId - user needs registration, returning null');
       return null;
     }
     
@@ -294,10 +300,10 @@ export default function RewardsPage() {
   // Fetch rewards data
   useEffect(() => {
     const fetchRewardsData = async () => {
-      // Don't fetch if userData is still loading or no valid userId
-      if (userDataLoading || !userId) {
-        console.log('Not fetching rewards data yet - userDataLoading:', userDataLoading, 'userId:', userId);
-        if (!userDataLoading && !userId) {
+      // Don't fetch if userData is still loading, no valid userId, or user needs registration
+      if (userDataLoading || !userId || needsRegistration) {
+        console.log('Not fetching rewards data yet - userDataLoading:', userDataLoading, 'userId:', userId, 'needsRegistration:', needsRegistration);
+        if (!userDataLoading && (!userId || needsRegistration)) {
           setLoading(false);
         }
         return;
@@ -325,7 +331,7 @@ export default function RewardsPage() {
     };
 
     fetchRewardsData();
-  }, [userId, userDataLoading]); // Re-fetch when userId changes or userDataLoading completes
+  }, [userId, userDataLoading, needsRegistration]); // Re-fetch when userId changes or userDataLoading completes
 
   // Redirect to dashboard if wallet not connected
   useEffect(() => {
@@ -385,6 +391,57 @@ export default function RewardsPage() {
           <p className="text-gray-600">Loading rewards...</p>
         </div>
       </div>
+    );
+  }
+
+  // Show registration prompt if user needs to register
+  if (needsRegistration && !userDataLoading) {
+    return (
+      <>
+        <Header />
+        
+        <div className="min-h-screen bg-gray-50 pt-16">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Header */}
+            <div className="mb-8">
+              <div className="flex items-center space-x-3 mb-4">
+                <Gift className="w-8 h-8 text-blue-600" />
+                <h1 className="text-3xl font-heading font-bold text-gray-900">
+                  Rewards
+                </h1>
+              </div>
+              <p className="text-lg text-gray-600">
+                Redeem your points for exciting rewards and exclusive benefits
+              </p>
+            </div>
+
+            {/* Registration Required Message */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="p-4 bg-blue-100 rounded-full">
+                  <Shield className="h-8 w-8 text-blue-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">Registration Required</h2>
+                <p className="text-gray-600 max-w-md">
+                  To access rewards and redeem points, please register your account first. This helps us track your progress and achievements.
+                </p>
+                <button
+                  onClick={() => router.push('/dashboard/profile')}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Register Now
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Back to Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -622,7 +679,7 @@ export default function RewardsPage() {
                     const color = colorMap[index % colorMap.length];
                     
                     return (
-                      <div key={tip.category} className="flex items-center space-x-3 text-sm">
+                      <div key={index} className="flex items-center space-x-3 text-sm">
                         <div className={`w-2 h-2 ${color} rounded-full`}></div>
                         <span className="text-gray-700">{tip.action}: {tip.points}</span>
                       </div>

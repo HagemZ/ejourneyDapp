@@ -147,8 +147,8 @@ export default function CommunityModal({ isOpen, onClose }: CommunityModalProps)
         // Fallback stats
         setStats({
           totalMembers: 1, // Based on actual API response showing 1 user
-          totalJourneys: 2, // Based on actual API response showing 2 journeys
-          totalReviews: 2, // Only 2 reviews as mentioned by user
+          totalJourneys: 1, // Based on actual API response showing 1 journey
+          totalReviews: 1, // Only 1 review as mentioned by user
           totalMissionsCompleted: 1 // Only 1 mission completed as confirmed by database and API
         });
       }
