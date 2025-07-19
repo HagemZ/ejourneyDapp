@@ -2,11 +2,14 @@
 import React, { useState, useEffect } from 'react'
 import { ConnectButton } from "@xellar/kit";
 import useResponsive from "@/hooks/useResponsive";
-import { MapPin, User, LogOut, Navigation, Map, Loader2 } from "lucide-react";
+import { MapPin, User, LogOut, Navigation, Map, Loader2, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from 'sonner';
 import useGetUserData from "@/hooks/useAddress";
+import { useReadContract, useAccount } from 'wagmi';
+import { abiJTN, JTN_TOKEN_ADDRESS } from "@/utils/abiJTN";
+import { formatEther } from 'viem';
 
 
 const ConnectButtonCustom = () => {
@@ -15,8 +18,32 @@ const ConnectButtonCustom = () => {
   const { deviceWidth } = useResponsive();
   const { users } = useGetUserData();
   const [isLoading, setIsLoading] = useState(true);
+  const { address, isConnected } = useAccount();
   
   const isDashboard = pathname === '/dashboard';
+
+  // Read JTN token balance using wagmi
+  const { 
+    data: jtnBalance, 
+    isLoading: isLoadingBalance, 
+    refetch: refetchBalance,
+    isError: isBalanceError 
+  } = useReadContract({
+    address: JTN_TOKEN_ADDRESS as `0x${string}`,
+    abi: abiJTN,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address && isConnected, // Only run when address is available and connected
+      refetchOnWindowFocus: false,
+      staleTime: 30000, // Consider data stale after 30 seconds
+    },
+  });
+
+  // Format the balance for display
+  const formattedBalance = jtnBalance 
+    ? parseFloat(formatEther(jtnBalance)).toFixed(4)
+    : '0.0000';
 
   // Simulate initial wallet check loading
   useEffect(() => {
@@ -26,6 +53,14 @@ const ConnectButtonCustom = () => {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // Manual refresh function
+  const handleRefreshBalance = () => {
+    if (address && isConnected) {
+      refetchBalance();
+      toast.success('Balance refreshed!');
+    }
+  };
   //   console.log(deviceWidth);
 
     return (
@@ -55,9 +90,46 @@ const ConnectButtonCustom = () => {
                       
                     ) : (
                         <div className="flex items-center space-x-3">
+                            {/* JTN Balance Display */}
+                            {deviceWidth >= 768 ? (
+                                <div className="flex items-center space-x-2 px-3 py-2 bg-yellow-50 border border-yellow-200 text-yellow-800 font-medium rounded-lg">
+                                    <Coins className="w-4 h-4" />
+                                    <span className="text-sm font-semibold">
+                                        {isLoadingBalance ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                        ) : isBalanceError ? (
+                                            'Error'
+                                        ) : (
+                                            `${formattedBalance} JTN`
+                                        )}
+                                    </span>
+                                    <button
+                                        onClick={handleRefreshBalance}
+                                        className="ml-1 text-yellow-600 hover:text-yellow-800 transition-colors"
+                                        title="Refresh Balance"
+                                        disabled={isLoadingBalance}
+                                    >
+                                        ↻
+                                    </button>
+                                </div>
+                            ) : (
+                                <Button
+                                    className="p-2 bg-yellow-100 text-yellow-700 font-medium rounded-lg border border-yellow-200 hover:bg-yellow-200 transition-all duration-200 text-sm"
+                                    onClick={handleRefreshBalance}
+                                    title={`JTN Balance: ${formattedBalance}`}
+                                    disabled={isLoadingBalance}
+                                >
+                                    <Coins className="w-4 h-4" />
+                                </Button>
+                            )}
+                            
                             <Button
                                 className="flex items-center space-x-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-white hover:shadow-md transition-all duration-200"
-                                onClick={openProfileModal}
+                                onClick={() => {
+                                    openProfileModal();
+                                    // Refresh balance when profile is opened
+                                    handleRefreshBalance();
+                                }}
                             >
                                 <User className="w-4 h-4" />
                                 {deviceWidth >= 768 && (
